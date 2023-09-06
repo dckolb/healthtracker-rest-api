@@ -1,0 +1,62 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.CheckInResult.ResultType;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+dialect  "mvel"
+
+rule "Patient reports a different Start Date"
+
+    when
+            $ht:HealthTracker(
+                getCheckInAggregator().patientReportedDifferentStartDate()
+            )
+    then
+
+    	$ht.getHealthTrackerStatus().addResult(ResultType.txStartDate, false, "Patient reports a different Start Date", null);
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end
+
+/*********** NOT STARTED ***********/
+
+rule "Medication Not Started"
+
+    when
+            $ht:HealthTracker(
+                getCheckInAggregator().patientHasNotStartedMedication()
+            )
+    then
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end
+
+/*********** NON-HIGH RISK ***********/
+
+rule "Non-high risk and Oral Adherence is NO 3 out of the last 5 days"
+
+    when
+            $ht:HealthTracker(
+                (patientInfo != null && patientInfo.highRisk == null || patientInfo.highRisk == false) &&
+            	getCheckInAggregator().countAnswer(5, "medicationTaken", "no") >= 3
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.adherence, false, $ht.getCheckInAggregator().countAnswerMessage(5, "medicationTaken", "no"), null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end
+
+/*********** HIGH RISK ***********/
+
+rule "High risk and Oral Adherence is NO 1 time"
+
+    when
+            $ht:HealthTracker(
+                (patientInfo != null && patientInfo.highRisk != null && patientInfo.highRisk == true) &&
+            	getCheckInAggregator().countAnswer(0, "medicationTaken", "no") > 0
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.adherence, false, "No, I didn't take my " + $ht.getEnrollment().getMedication(), null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end

@@ -1,0 +1,20 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.CheckInResult.ResultType;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+dialect  "mvel"
+
+/** NOTE - the HT Status is still set to 'TRIAGE' **/
+
+rule "Out of Medication"
+
+    when
+            $ht:HealthTracker(
+                getCheckInAggregator().countAnswer(0, "medicationSkipReason", "outOfMedication") > 0
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResultAndSetTriageReason(ResultType.adherence, false, "Out of Medication", null, "out_of_med")
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.TRIAGE)
+
+end

@@ -1,0 +1,30 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.CheckInResult.ResultType;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+dialect  "mvel"
+
+rule "PRO CTCAE 0-1 & No Side Affects"
+
+    when
+            $ht:HealthTracker(
+            	getCheckInAggregator().countAnswerForMandatoryProCtcaeSymptoms(0, "2,3,4") == 0
+                && getCheckInAggregator().countSideAffects(0, "Severity", "1,2,3,4,5,6,7,8,9,10") == 0
+            )
+    then
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.NO_ACTION_NEEDED)
+        $ht.getHealthTrackerStatus().setEndCurrentCycle(true);
+end
+
+rule "PRO CTCAE 0-1 on 3 Symptoms & not 2 or higher on other side effects"
+
+    when
+            $ht:HealthTracker(
+            	getCheckInAggregator().countAnswerForMandatoryProCtcaeSymptoms(0, "2,3,4") == 0
+                && getCheckInAggregator().countSideAffects(0, "Severity", "3,4,5,6,7,8,9,10") == 0
+            )
+    then
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.NO_ACTION_NEEDED)
+        $ht.getHealthTrackerStatus().setEndCurrentCycle(true);
+end

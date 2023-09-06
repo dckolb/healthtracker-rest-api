@@ -1,0 +1,39 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+
+dialect  "mvel"
+
+/*********** MILD SIDE EFFECT ***********/
+
+rule "Mild Side Effect"
+     
+    when
+            $ht:HealthTracker(
+                getCheckInAggregator().countSideAffects(0, "Severity", "1,2") > 0
+            )
+    then
+    	$ht.getCheckInAggregator().addSymptom(0, "Severity", "1,2")
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.WATCH_CAREFULLY)
+
+end
+
+
+/*********** NON-HIGH RISK ***********/
+
+rule "Non-High Risk patients that have an Oral Adherence of NO 2 of the last 5 days"
+     
+    when
+            $ht:HealthTracker(
+                patientInfo != null && (patientInfo.highRisk == null || patientInfo.highRisk == false) &&
+            	getCheckInAggregator().countAnswer(5, "medicationTaken", "no") >= 2
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.adherence, false, $ht.getCheckInAggregator().countAnswerMessage(5, "medicationTaken", "no"), null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.WATCH_CAREFULLY)
+
+end
+
+
+

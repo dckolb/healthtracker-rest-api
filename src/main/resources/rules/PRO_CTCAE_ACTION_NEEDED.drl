@@ -1,0 +1,18 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.CheckInResult.ResultType;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+dialect  "mvel"
+
+rule "Moderate, severe or very severe response for at least 2 of pain, nausea or constipation"
+
+    when
+            $ht:HealthTracker(
+            	getCheckInAggregator().countAnswerForMandatoryProCtcaeSymptoms(0, "2,3,4") > 2
+            )
+    then
+    	$ht.getCheckInAggregator().addProCtcaeSymptom(0, "2,3,4");
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end

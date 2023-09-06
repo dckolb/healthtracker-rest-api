@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>2.7.0</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.navigatingcancer</groupId>
+	<artifactId>healthtracker-rest-api</artifactId>
+	<version>2.0.0-SNAPSHOT</version>
+	<name>api</name>
+	<description>Health Tracker Rest API</description>
+	<properties>
+		<auth0-spring-security-api.version>1.5.1</auth0-spring-security-api.version>
+		<aws-java-sdk.version>1.11.943</aws-java-sdk.version>
+		<commons-lang3.version>3.9</commons-lang3.version>
+		<dd-trace.version>0.100.0</dd-trace.version>
+		<disruptor.version>3.4.4</disruptor.version>
+		<drools.version>7.72.0.Final</drools.version>
+		<git-code-format-maven-plugin.version>3.3</git-code-format-maven-plugin.version>
+		<guava.version>30.0-jre</guava.version>
+		<jacoco.version>0.8.8</jacoco.version>
+		<java.version>17</java.version>
+		<jsoup.version>1.15.3</jsoup.version>
+		<log4j2.version>2.17.2</log4j2.version>
+		<maven-surefire-plugin.version>3.0.0-M5</maven-surefire-plugin.version>
+		<maven.compiler.source>17</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
+		<nc-commons.version>1.0.5-SNAPSHOT</nc-commons.version>
+		<notification-client.version>2.5.2-SNAPSHOT</notification-client.version>
+		<plexus-utils.version>3.0.24</plexus-utils.version>
+		<scheduler-client.version>0.2.0-SNAPSHOT</scheduler-client.version>
+		<spring-boot-maven-plugin.version>2.7.1</spring-boot-maven-plugin.version>
+		<spring-data-mongodb.version>3.4.1</spring-data-mongodb.version>
+		<swagger-maven-plugin-version>3.1.8</swagger-maven-plugin-version>
+	</properties>
+
+	<distributionManagement>
+		<repository>
+			<id>nc-repo-releases</id>
+			<url>https://alb-auth.nc-acceptance.com/artifactory/libs-release-local/</url>
+		</repository>
+		<snapshotRepository>
+			<id>nc-repo-snapshots</id>
+			<url>https://alb-auth.nc-acceptance.com/artifactory/libs-snapshot-local/</url>
+		</snapshotRepository>
+	</distributionManagement>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.amazonaws</groupId>
+				<artifactId>aws-java-sdk-bom</artifactId>
+				<version>${aws-java-sdk.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-mongodb</artifactId>
+			<version>${spring-data-mongodb.version}</version>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.auth0</groupId>
+			<artifactId>auth0-spring-security-api</artifactId>
+			<version>${auth0-spring-security-api.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-log4j2</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>${guava.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.vintage</groupId>
+			<artifactId>junit-vintage-engine</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>de.flapdoodle.embed</groupId>
+			<artifactId>de.flapdoodle.embed.mongo</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+			<groupId>com.navigatingcancer.scheduler</groupId>
+			<artifactId>scheduler-client</artifactId>
+			<version>${scheduler-client.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.navigatingcancer.notification</groupId>
+			<artifactId>notification-client</artifactId>
+			<version>${notification-client.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.navigatingcancer</groupId>
+			<artifactId>commons</artifactId>
+			<version>${nc-commons.version}</version>
+		</dependency>
+
+
+		<dependency>
+			<groupId>com.amazonaws</groupId>
+			<artifactId>aws-java-sdk-s3</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.amazonaws</groupId>
+			<artifactId>aws-java-sdk-sts</artifactId>
+		</dependency>
+
+		<!-- drools -->
+		<dependency>
+			<groupId>org.kie</groupId>
+			<artifactId>kie-ci</artifactId>
+			<version>${drools.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.apache.maven.wagon</groupId>
+					<artifactId>wagon-http</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.drools</groupId>
+			<artifactId>drools-decisiontables</artifactId>
+			<version>${drools.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.codehaus.plexus</groupId>
+			<artifactId>plexus-utils</artifactId>
+			<version>${plexus-utils.version}</version>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>${jsoup.version}</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>${commons-lang3.version}</version>
+		</dependency>
+
+		<!-- Rabbit MQ -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
+		<!-- DataDog APM -->
+		<dependency>
+			<groupId>com.datadoghq</groupId>
+			<artifactId>dd-trace-api</artifactId>
+			<version>${dd-trace.version}</version>
+		</dependency>
+
+		<!-- Metrics API callin DD agent -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-statsd</artifactId>
+		</dependency>
+
+		<!-- asynchronous loggers -->
+		<dependency>
+			<groupId>com.lmax</groupId>
+			<artifactId>disruptor</artifactId>
+			<version>${disruptor.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-layout-template-json</artifactId>
+			<version>${log4j2.version}</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+
+			<plugin>
+				<groupId>com.cosium.code</groupId>
+				<artifactId>git-code-format-maven-plugin</artifactId>
+				<version>${git-code-format-maven-plugin.version}</version>
+				<executions>
+					<!-- On commit, format the modified java files -->
+					<execution>
+						<id>install-formatter-hook</id>
+						<goals>
+							<goal>install-hooks</goal>
+						</goals>
+					</execution>
+					<!-- On Maven verify phase, fail if any file
+					(including unmodified) is badly formatted -->
+					<execution>
+					<id>validate-code-format</id>
+					<goals>
+						<goal>validate-code-format</goal>
+					</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+
+
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<configuration>
+					<excludes>
+						<!-- don't include coverage of Lombok generated code -->
+						<exclude>com/navigatingcancer/healthtracker/api/data/model/*.class</exclude>
+						<!-- ignore huge drools classes-->
+						<exclude>org/drools/compiler/lang/*</exclude>
+					</excludes>
+					<!-- Sets the path to the file which contains the execution data. -->
+
+					<dataFile>target/jacoco.exec</dataFile>
+					<!-- Sets the output directory for the code coverage report. -->
+					<outputDirectory>target/my-reports</outputDirectory>
+				</configuration>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>prepare-package</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>post-unit-test</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
+			<plugin>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>3.1.11</version>
+				<dependencies>
+					<!-- overwrite dependency on spotbugs if you want to specify the version
+						of spotbugs -->
+					<dependency>
+						<groupId>com.github.spotbugs</groupId>
+						<artifactId>spotbugs</artifactId>
+						<version>4.0.0-beta1</version>
+					</dependency>
+				</dependencies>
+			</plugin>
+			
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<version>${spring-boot-maven-plugin.version}</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>build-info</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
+			<plugin>
+				<groupId>pl.project13.maven</groupId>
+				<artifactId>git-commit-id-plugin</artifactId>
+			</plugin>
+
+			<plugin>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${maven-surefire-plugin.version}</version>
+				<configuration>
+					<parallel>classes</parallel>
+					<threadCount>8</threadCount>
+					<runOrder>alphabetical</runOrder>
+					<useSystemClassLoader>false</useSystemClassLoader>
+					<systemPropertyVariables>
+						<de.adesso.junitinsights.enabled>true</de.adesso.junitinsights.enabled>
+						<junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
+						<logging.level.root>OFF</logging.level.root>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>

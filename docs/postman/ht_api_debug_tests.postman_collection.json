@@ -1,0 +1,340 @@
+{
+	"info": {
+		"_postman_id": "d01ee364-5222-4333-b506-972fa59e4c48",
+		"name": "ht_api_debug_tests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Status - 200",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{domain}}/ht-api/status?clinicId=1",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"status"
+					],
+					"query": [
+						{
+							"key": "clinicId",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Enrollment - 200",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "2e87bdc4-a3cb-401e-a511-7fd6e965382b",
+						"exec": [
+							"const resp = pm.response.json();",
+							"",
+							"pm.test(\"Returns an Enrollment with ID\", function () {",
+							"    // id is not empty",
+							"    pm.expect(resp.id).to.have.lengthOf(1);",
+							"    // save the id for later use",
+							"    pm.environment.set(\"enrollmentId_1\", resp.id);",
+							"})"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"clinicId\": 1,\n  \"locationId\": 1,\n  \"patientId\": 4,\n  \"alerts\": true,\n  \"cycleNumber\": 1,\n  \"cycles\": 1,\n  \"daysInCycle\": 4,\n  \"emailAddress\": \"string\",\n  \"endDate\": \"2019-08-25\",\n  \"medication\": \"Test\",\n  \"phoneNumber\": \"string\",\n  \"reminderTime\": \"11:00\",\n  \"reminderTimeZone\": \"America/Los_Angeles\",\n  \"repeat\": 0,\n  \"schedules\": [\n    {\n      \"checkInFrequency\": \"WEEKLY\",\n      \"checkInType\": \"ORAL\",\n      \"endDate\": \"2019-08-25\",\n      \"startDate\": \"2019-08-17\",\n      \"weeklyDays\": [\n        2\n      ]\n    },\n    {\n      \"checkInFrequency\": \"WEEKLY\",\n      \"checkInType\": \"SYMPTOM\",\n      \"endDate\": \"2019-08-25\",\n      \"startDate\": \"2019-08-17\",\n      \"weeklyDays\": [\n        2\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\",\n  \"txStartDate\": \"3000-08-17\"\n}"
+				},
+				"url": {
+					"raw": "{{domain}}/ht-api/enrollments?",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"enrollments"
+					],
+					"query": [
+						{
+							"key": "clinicId",
+							"value": "12",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Status - 200 w/ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{domain}}/ht-api/status/{{enrollmentId_futureTxStartDate}}",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"status",
+						"{{enrollmentId_futureTxStartDate}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Enrollment - 200 Future TxStartDate",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "2e87bdc4-a3cb-401e-a511-7fd6e965382b",
+						"exec": [
+							"const resp = pm.response.json();",
+							"",
+							"pm.test(\"Returns an Enrollment with ID\", function () {",
+							"    // id is not empty",
+							"    pm.expect(resp.id).to.have.lengthOf(1);",
+							"    // save the id for later use",
+							"    pm.environment.set(\"enrollmentId_futureTxStartDate\", resp.id);",
+							"    pm.environment.set(\"enrollmentVersion_futureTxStartDate\", resp.version)",
+							"})"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"clinicId\": 1,\n  \"locationId\": 1,\n  \"patientId\": 6,\n  \"alerts\": true,\n  \"cycleNumber\": 1,\n  \"cycles\": 1,\n  \"daysInCycle\": 4,\n  \"emailAddress\": \"string\",\n  \"endDate\": \"2025-08-25\",\n  \"medication\": \"Test\",\n  \"phoneNumber\": \"string\",\n  \"reminderTime\": \"11:00\",\n  \"reminderTimeZone\": \"America/Los_Angeles\",\n  \"repeat\": 0,\n  \"schedules\": [\n    {\n      \"checkInFrequency\": \"WEEKLY\",\n      \"checkInType\": \"ORAL\",\n      \"endDate\": \"2025-08-25\",\n      \"startDate\": \"2025-08-17\",\n      \"weeklyDays\": [\n        2\n      ]\n    },\n    {\n      \"checkInFrequency\": \"WEEKLY\",\n      \"checkInType\": \"SYMPTOM\",\n      \"endDate\": \"2025-08-25\",\n      \"startDate\": \"2025-08-17\",\n      \"weeklyDays\": [\n        2\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\",\n  \"txStartDate\": \"2025-08-17\"\n}"
+				},
+				"url": {
+					"raw": "{{domain}}/ht-api/enrollments?",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"enrollments"
+					],
+					"query": [
+						{
+							"key": "clinicId",
+							"value": "12",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Enrollment - 200 w/ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{domain}}/ht-api/enrollments/{{enrollmentId_futureTxStartDate}}",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"enrollments",
+						"{{enrollmentId_futureTxStartDate}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Enrollment - 200 Remove Symptom CheckIns",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "2e87bdc4-a3cb-401e-a511-7fd6e965382b",
+						"exec": [
+							"const resp = pm.response.json();",
+							"",
+							"pm.test(\"Returns an Enrollment with ID\", function () {",
+							"    // id is not empty",
+							"    pm.expect(resp.id).to.have.lengthOf(1);",
+							"    // save the id for later use",
+							"    pm.environment.set(\"enrollmentId_1\", resp.id);",
+							"})"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"id\": \"{{enrollmentId_futureTxStartDate}}\",\n    \"version\": \"{{enrollmentVersion_futureTxStartDate}}\",\n    \"patientId\": 5,\n    \"clinicId\": 1,\n    \"locationId\": 1,\n    \"status\": \"ACTIVE\",\n    \"emailAddress\": \"string\",\n    \"phoneNumber\": \"string\",\n    \"alerts\": true,\n    \"medication\": \"Test\",\n    \"txStartDate\": \"2025-08-17\",\n    \"reminderStartDate\": null,\n    \"endDate\": \"2025-08-25\",\n    \"cycles\": 1,\n    \"cycleNumber\": 1,\n    \"daysInCycle\": 4,\n    \"repeat\": 0,\n    \"reminderTime\": \"11:00\",\n    \"reminderTimeZone\": \"America/Los_Angeles\",\n    \"schedules\": [\n        {\n            \"medication\": null,\n            \"startDate\": \"2025-08-17\",\n            \"endDate\": \"2025-08-25\",\n            \"checkInType\": \"ORAL\",\n            \"checkInFrequency\": \"WEEKLY\",\n            \"checkInDays\": null,\n            \"weeklyDays\": [\n                2\n            ],\n            \"cycleDays\": null\n        }\n    ],\n    \"url\": \"https://patient-experience.nc-acceptance.com/uTm7xIwg\",\n    \"statusLogs\": [\n        {\n            \"status\": \"ACTIVE\",\n            \"reason\": null,\n            \"note\": null,\n            \"date\": \"2019-09-04T19:00:16.898\",\n            \"clinicianId\": null,\n            \"clinicianName\": \"HealthTracker\"\n        }\n    ],\n    \"therapyTypes\": null\n}"
+				},
+				"url": {
+					"raw": "{{domain}}/ht-api/enrollments/{{enrollmentId_futureTxStartDate}}?",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"enrollments",
+						"{{enrollmentId_futureTxStartDate}}"
+					],
+					"query": [
+						{
+							"key": "clinicId",
+							"value": "12",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Remind Me Now - 200 w/ID",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "50295308-4971-4fb3-a5fa-4a7e46fbf0de",
+						"exec": [
+							"// Note this endpoint actually sends email in dev and acceptanc envs",
+							"",
+							"// 200 response should return nothing",
+							"pm.test(\"Response is ok\", function () {",
+							"    pm.response.to.be.ok",
+							"    pm.response.to.not.be.json",
+							"});",
+							"",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{domain}}/ht-api/checkins/remindMeNow?enrollmentId={{enrollmentId}}",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"checkins",
+						"remindMeNow"
+					],
+					"query": [
+						{
+							"key": "enrollmentId",
+							"value": "{{enrollmentId}}"
+						}
+					]
+				},
+				"description": "Send enrollment link to patient via either email or sms depending on enrollment creation."
+			},
+			"response": []
+		},
+		{
+			"name": "Remind Me Now - 404 unkownID",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "50295308-4971-4fb3-a5fa-4a7e46fbf0de",
+						"exec": [
+							"const resp = pm.response.json()",
+							"",
+							"pm.test(\"Returns valid looking data\", function () {",
+							"    pm.response.to.have.status(404)",
+							"    pm.response.to.be.json",
+							"})"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{domain}}/ht-api/checkins/remindMeNow?enrollmentId=unkownID",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"ht-api",
+						"checkins",
+						"remindMeNow"
+					],
+					"query": [
+						{
+							"key": "enrollmentId",
+							"value": "unkownID"
+						}
+					]
+				},
+				"description": "Send enrollment link to patient via either email or sms depending on enrollment creation."
+			},
+			"response": []
+		}
+	],
+	"protocolProfileBehavior": {}
+}

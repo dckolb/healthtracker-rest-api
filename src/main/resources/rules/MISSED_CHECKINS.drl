@@ -1,0 +1,83 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.CheckInResult.ResultType;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+dialect  "mvel"
+
+/*
+ Here are some rules specific for calculations of missed checkins and participation percent.
+ Moved here from ACTION_NEEDED and WATCH_CAREFULLY.
+ These rules can be evaluated regardless of whether there was a patient survey reply.
+*/
+
+/*********** NON-HIGH RISK ***********/
+
+rule "Non-high risk and No check in for 3 consecutive checkins"
+
+    when
+            $ht:HealthTracker(
+                (patientInfo != null && patientInfo.highRisk == null || patientInfo.highRisk == false) &&
+            	getCheckInAggregator().countMissed() >= 3
+            )
+    then
+
+    	$ht.getHealthTrackerStatus().addResult(ResultType.participation, false, $ht.getCheckInAggregator().countMissed() + " missed check-ins", null);
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end
+
+rule "Non-high risk and Low Participation (50% or less in the past 14 days)"
+     
+    when
+            $ht:HealthTracker(
+                patientInfo != null && (patientInfo.highRisk == null || patientInfo.highRisk == false) &&
+            	getCheckInAggregator().participationPercent(2, 14) <= 50
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.participationRate, false, "Low participation", null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.WATCH_CAREFULLY)
+
+end
+
+
+/*********** HIGH RISK ***********/
+
+rule "High risk and no check ins for 2 consecutive checkins"
+     
+    when
+            $ht:HealthTracker(
+            	(patientInfo != null && patientInfo.highRisk != null && patientInfo.highRisk == true) &&
+            	getCheckInAggregator().countMissed() >= 2
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.participation, false, $ht.getCheckInAggregator().countMissed() + " missed check-ins", null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end
+
+rule "High Risk and low participation (75% or less over  14 last days)"
+     
+    when
+            $ht:HealthTracker(
+                (patientInfo != null && patientInfo.highRisk != null && patientInfo.highRisk == true) && 
+                getCheckInAggregator().participationPercent(2, 14) <= 75
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.participationRate, false, "Low participation", null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.ACTION_NEEDED)
+
+end
+
+rule "High Risk and one missed check-in"
+     
+    when
+            $ht:HealthTracker(
+                (patientInfo != null && patientInfo.highRisk != null && patientInfo.highRisk) &&
+            	getCheckInAggregator().countMissed() == 1
+            )
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.participation, false, "1 missed check-in", null)
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.WATCH_CAREFULLY)
+
+end

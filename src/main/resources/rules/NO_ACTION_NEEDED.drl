@@ -1,0 +1,19 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.CheckInResult.ResultType;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+
+dialect  "mvel"
+
+/*********** Severity ***********/
+
+rule "No Action Needed"
+
+    when
+        $ht:HealthTracker();
+        // allways create a card for "No action needed " as per PRO-CTCAE requirement
+    then
+    	$ht.getHealthTrackerStatus().addResult(ResultType.noAction, false, "No Action Needed.", "No Action Needed.");
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.NO_ACTION_NEEDED)
+
+end

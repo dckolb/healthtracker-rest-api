@@ -1,0 +1,45 @@
+import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
+import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+import com.navigatingcancer.healthtracker.api.data.model.TherapyType;
+
+
+dialect  "mvel"
+
+/*
+From https://navigatingcancer.atlassian.net/browse/HT-874
+
+- If patient reports 0-1 severity on all questions and doesn't report any other side effects, 
+check-ins end for current cycle and patient will go into "no action needed"
+
+- If patient reports 2 or higher on any symptoms, triage ticket created and 
+patient will go into "action needed" and follow normal rules, check-ins continue
+*/
+
+rule "Stop cycle if no side effects"
+     
+    when
+            $ht:HealthTracker(
+                getEnrollment().getTherapyTypes() != null && getEnrollment().getTherapyTypes().contains(TherapyType.IV) &&
+                getCheckInAggregator().anyCompleted() &&
+                getCheckInAggregator().countAnswersWithHighSeveritys(Integer.MAX_VALUE) == 0
+            )
+    then
+    	$ht.getCheckInAggregator().addSymptom(0, "Severity", "0,1")
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.WATCH_CAREFULLY)
+        $ht.getHealthTrackerStatus().setEndCurrentCycle(true);
+
+end
+
+rule "Moderate, severe or very severe response for any symptom"
+
+    when
+            $ht:HealthTracker(
+                getCheckInAggregator().countAnswersWithHighSeveritys(0) > 0
+            )
+    then
+        $ht.getCheckInAggregator().addProCtcaeSymptom(0, "2,3,4");
+        $ht.getHealthTrackerStatus().updateIfHigherPriorityCategory(HealthTrackerStatusCategory.TRIAGE)
+
+end
+
