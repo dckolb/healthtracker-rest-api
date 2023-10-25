@@ -7,7 +7,7 @@ import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.SideEffect;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
-import com.navigatingcancer.healthtracker.api.data.repo.CustomCheckInRepository;
+import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,7 +21,7 @@ public class SurveyPayloadParser {
 
   @Autowired ProFormatManager proFormatManager;
 
-  @Autowired CustomCheckInRepository customCheckInRepository;
+  @Autowired CheckInRepository checkInRepository;
 
   /**
    * Parse oral {@link Adherence} elements out of a {@link SurveyPayload}
@@ -37,8 +37,9 @@ public class SurveyPayloadParser {
 
     List<String> checkInIds =
         sp.getOral().stream().map(s -> s.getId()).collect(Collectors.toList());
-    CheckIn lastCheckin =
-        customCheckInRepository.getLastCheckinByType(checkInIds, CheckInType.ORAL);
+
+    // FIXME: handle survey instance (dont use check in type)
+    CheckIn lastCheckin = checkInRepository.getLastCheckinByType(checkInIds, CheckInType.ORAL);
     if (lastCheckin != null) {
       String svId = lastCheckin.getId();
       List<SurveyItemPayload> lastOral =
@@ -73,8 +74,9 @@ public class SurveyPayloadParser {
     // find the very last symptoms checkin and survey responses
     List<String> checkInIds =
         sp.getSymptoms().stream().map(s -> s.getId()).collect(Collectors.toList());
-    CheckIn lastCheckin =
-        customCheckInRepository.getLastCheckinByType(checkInIds, CheckInType.SYMPTOM);
+
+    // FIXME: HT-5295 handle survey instance (dont use check in type)
+    CheckIn lastCheckin = checkInRepository.getLastCheckinByType(checkInIds, CheckInType.SYMPTOM);
     if (lastCheckin == null) {
       if (!checkInIds.isEmpty()) {
         log.warn("failed to find checkin matching symptom survey", sp);

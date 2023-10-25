@@ -44,3 +44,6 @@ integration-run-mongo:
 	cd .docker && docker-compose run -d -p 27018:27017 mongodb 
 	sleep 1
 	./.docker/mongodb/seed.sh
+
+intercept-dev:
+	./telepresence.sh -c eks-dev-2022

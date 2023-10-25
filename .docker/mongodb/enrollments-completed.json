@@ -1,0 +1,43 @@
+[
+    {
+        "_id": ObjectId("5d1b32b9599d3b00014a17b9"),
+        "patientId": NumberLong(9169),
+        "clinicId": NumberLong(9169),
+        "locationId": NumberLong(9169),
+        "status": "COMPLETED",
+        "emailAddress": "string",
+        "phoneNumber": "string",
+        "alerts": true,
+        "medication": "Test",
+        "txStartDate": ISODate("2019-05-23T00:00:00Z"),
+        "endDate": ISODate("2019-07-02T00:00:00Z"),
+        "cycles": 1,
+        "cycleNumber": 1,
+        "daysInCycle": 5,
+        "repeat": 0,
+        "reminderTime": "11:00",
+        "reminderTimeZone": "America/Los_Angeles",
+        "schedules": [
+            {
+                "startDate": ISODate("2019-07-01T00:00:00Z"),
+                "endDate": ISODate("2019-07-02T00:00:00Z"),
+                "checkInType": "ORAL",
+                "checkInFrequency": "DAILY"
+            },
+            {
+                "startDate": ISODate("2019-07-01T00:00:00Z"),
+                "endDate": ISODate("2019-07-02T00:00:00Z"),
+                "checkInType": "SYMPTOM",
+                "checkInFrequency": "DAILY"
+            }
+        ],
+        "url": "https://patient-experience.nc-acceptance.com/v6OhBhLW",
+        "statusLogs": [],
+        "version": NumberLong(2),
+        "createdDate": ISODate("2019-07-02T10:32:25.508Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-03T06:59:00.931Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.Enrollment"
+    }
+]

@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -15,6 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 @Document(collection = "ht_events")
+@CompoundIndex(name = "patient_event_idx", def = "{'clinicId': 1, 'patientId': 1, 'date': -1}")
 public class HealthTrackerEvent extends AbstractDocument {
 
   public enum Type {
@@ -63,7 +65,7 @@ public class HealthTrackerEvent extends AbstractDocument {
   private String reason;
   private String note;
   private String programType;
-  private String surveyType; // CX, PX
+  @Deprecated private String surveyType; // CX, PX
   private List<CheckIn> relatedCheckins; // PRO related to the event, if applicable
   private Long missedCheckinsCount; // since last completed checkin
   private List<SideEffect> sideEffects;

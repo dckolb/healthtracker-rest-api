@@ -3,23 +3,18 @@ package com.navigatingcancer.healthtracker.api.data.service.impl;
 import static com.navigatingcancer.healthtracker.api.data.auth.AuthInterceptor.HEALTH_TRACKER_NAME;
 
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableMap;
 import com.navigatingcancer.date.utils.DateTimeUtils;
 import com.navigatingcancer.healthtracker.api.data.auth.IdentityContext;
 import com.navigatingcancer.healthtracker.api.data.auth.IdentityContextHolder;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
+import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyId;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.data.model.surveyConfig.ClinicConfig;
-import com.navigatingcancer.healthtracker.api.data.model.surveyConfig.ProgramConfig;
-import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
-import com.navigatingcancer.healthtracker.api.data.repo.CustomCheckInRepository;
-import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepository;
-import com.navigatingcancer.healthtracker.api.data.repo.PracticeCheckInRepository;
-import com.navigatingcancer.healthtracker.api.data.service.CheckInService;
-import com.navigatingcancer.healthtracker.api.data.service.EnrollmentService;
-import com.navigatingcancer.healthtracker.api.data.service.PatientInfoService;
-import com.navigatingcancer.healthtracker.api.data.service.SurveyConfigService;
+import com.navigatingcancer.healthtracker.api.data.repo.*;
+import com.navigatingcancer.healthtracker.api.data.service.*;
 import com.navigatingcancer.healthtracker.api.events.HealthTrackerEventsPublisher;
 import com.navigatingcancer.healthtracker.api.metrics.HealthTrackerCounterMetric;
 import com.navigatingcancer.healthtracker.api.metrics.MetersService;
@@ -27,8 +22,8 @@ import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusServi
 import com.navigatingcancer.healthtracker.api.processor.model.ProFormatManager;
 import com.navigatingcancer.healthtracker.api.rest.QueryParameters.EnrollmentQuery;
 import com.navigatingcancer.healthtracker.api.rest.exception.BadDataException;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.rest.exception.RecordNotFoundException;
+import com.navigatingcancer.healthtracker.api.rest.representation.CheckInResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -52,8 +47,6 @@ public class CheckInServiceImpl implements CheckInService {
 
   @Autowired private PracticeCheckInRepository practiceCheckInRepository;
 
-  @Autowired private CustomCheckInRepository customCheckInRepository;
-
   @Autowired private EnrollmentRepository enrollmentRepository;
 
   @Autowired private EnrollmentService enrollmentService;
@@ -62,7 +55,7 @@ public class CheckInServiceImpl implements CheckInService {
 
   @Autowired private HealthTrackerStatusService healthTrackerStatusService;
 
-  @Autowired private PatientInfoClient patientInfoClient;
+  @Autowired private PatientInfoServiceClient patientInfoClient;
 
   @Autowired private ProFormatManager proFormatManager;
 
@@ -72,27 +65,21 @@ public class CheckInServiceImpl implements CheckInService {
 
   @Autowired private SurveyConfigService surveyConfigService;
 
+  @Autowired private CheckInCreationService checkInCreationService;
+
   @Autowired private HealthTrackerEventsPublisher healthTrackerEventsPublisher;
 
   @Autowired private MetersService metersService;
 
   private static final String BACKFILL_DATE = "medicationTakenDate";
 
-  private Map<String, String> SURVEY_IDS =
-      new ImmutableMap.Builder<String, String>()
-          .put("ORAL_ADHERENCE_CX", CheckIn.ORAL_ADHERENCE_CX)
-          .put("ORAL_ADHERENCE_PX", CheckIn.ORAL_ADHERENCE_PX)
-          .put("ORAL_ADHERENCE_HT_CX", CheckIn.ORAL_ADHERENCE_HT_CX)
-          .put("ORAL_ADHERENCE_HT_PX", CheckIn.ORAL_ADHERENCE_HT_PX)
-          .put("HEALTH_TRACKER_CX", CheckIn.HEALTH_TRACKER_CX)
-          .put("HEALTH_TRACKER_PX", CheckIn.HEALTH_TRACKER_PX)
-          .put("PROCTCAE_CX", CheckIn.PROCTCAE_CX)
-          .put("PROCTCAE_PX", CheckIn.PROCTCAE_PX)
-          .build();
-
-  /** Called when check-in survey (PX) is saved */
+  /**
+   * Called when check-in survey (PX) is saved
+   *
+   * @return list of checkins derived from the given payload
+   */
   @Override
-  public void checkIn(SurveyPayload surveyPayload) {
+  public List<CheckIn> checkIn(SurveyPayload surveyPayload) {
     log.debug("checkIn with SurveyPayload {}", surveyPayload);
 
     // Persist ORAL check-in
@@ -103,7 +90,8 @@ public class CheckInServiceImpl implements CheckInService {
     List<CheckIn> checkins = new LinkedList<>(oralCheckins);
     Enrollment symptomEnrollment =
         processSurveyItemPayloads(surveyPayload, surveyPayload.getSymptoms(), checkins);
-    // NOTE: both must be the same, legacy code expected that may not be the case, not sure why
+    // NOTE: both must be the same, legacy code expected that may not be the case,
+    // not sure why
     Enrollment enrollment = oralEnrollment == null ? symptomEnrollment : oralEnrollment;
 
     String enrollmentId = null;
@@ -128,10 +116,12 @@ public class CheckInServiceImpl implements CheckInService {
     rescheduleIfMedsDateChange(oralCheckins, enrollment);
 
     healthTrackerEventsPublisher.publishCheckinCompleted(enrollment, checkins, surveyPayload);
-    healthTrackerStatusService.push(enrollmentId, surveyPayload);
+    healthTrackerStatusService.push(enrollmentId, surveyPayload, checkins);
     // Send metric to DD
     Long clinicId = enrollment != null ? enrollment.getClinicId() : 0;
     metersService.incrementCounter(clinicId, HealthTrackerCounterMetric.CHECKIN_COMPLETED);
+
+    return checkins;
   }
 
   @Override
@@ -163,7 +153,8 @@ public class CheckInServiceImpl implements CheckInService {
       CheckInData checkInData = new CheckInData();
 
       // NOTE : this makes about 8-10 mongodb calls per enrollment
-      // if this performs poorly we should update the queries to handle multiple enrollments at a
+      // if this performs poorly we should update the queries to handle multiple
+      // enrollments at a
       // time
       getCheckInData(checkInData, enrollment, includePatientInfo);
       checkInDataList.add(checkInData);
@@ -231,6 +222,8 @@ public class CheckInServiceImpl implements CheckInService {
         && identityContext.getPatientId() != null
         && identityContext.getClinicId() != null) {
       log.trace("using patient");
+      practiceCheckIn.setClinicId(identityContext.getClinicId());
+      practiceCheckIn.setPatientId(identityContext.getPatientId());
       practiceCheckIn.setCompletedBy(
           this.patientInfoService.getPatientName(
               identityContext.getClinicId(), identityContext.getPatientId()));
@@ -243,17 +236,68 @@ public class CheckInServiceImpl implements CheckInService {
     return practiceCheckInRepository.save(practiceCheckIn);
   }
 
-  /**
-   * Ensure we're only looking at the most recent PENDING checkins
-   *
-   * @param enrollmentId
-   * @return
-   */
-  private List<CheckIn> getMostRecentPendingCheckins(String enrollmentId) {
+  @Override
+  public List<CheckInResponse> getCheckInsByEnrollmentAndStatus(
+      String enrollmentId, CheckInStatus checkInStatus, boolean includeClinicCollect) {
+    Enrollment enrollment =
+        enrollmentRepository
+            .findById(enrollmentId)
+            .orElseThrow(
+                () ->
+                    new RecordNotFoundException(
+                        String.format("Enrollment with id %s not found", enrollmentId)));
+
+    List<CheckIn> checkIns;
+    if (checkInStatus == CheckInStatus.PENDING) {
+      // inserts practice checkins or adds isGuided param to the pending checkins if
+      // needed
+      checkIns = buildPendingCheckins(enrollment);
+    } else if (checkInStatus != null) {
+      checkIns = checkInRepository.findByStatus(enrollmentId, checkInStatus);
+    } else {
+      checkIns = checkInRepository.findByEnrollmentId(enrollmentId);
+    }
+
+    // filter out CX-only check-ins
+    if (!includeClinicCollect) {
+      checkIns = checkIns.stream().filter(c -> !SurveyId.isClinicCollect(c.getSurveyId())).toList();
+    }
+
+    // remove when HT-5236_checkin_schedule_collection is live
+    // Once checkInSchedules are stored in the db we should use ht-server resolvers
+    // to build the
+    // schedule off of the checkin.scheduleId
+    Map<String, CheckInSchedule> schedulesMap = buildSchedules(enrollment, checkIns);
+    var checkInResponses =
+        checkIns.stream()
+            .map(
+                c -> {
+                  String scheduleId = c.getCheckInScheduleId();
+                  if (scheduleId == null && c.getCheckInType() != null) {
+                    scheduleId = c.getCheckInType().toString();
+                  }
+
+                  if (scheduleId != null) {
+                    CheckInSchedule schedule = schedulesMap.get(scheduleId);
+                    return new CheckInResponse(c, schedule);
+                  } else {
+                    return new CheckInResponse(c, null);
+                  }
+                })
+            .toList();
+
+    return checkInResponses;
+  }
+
+  private List<CheckIn> getMostRecentPendingCheckins(List<CheckIn> checkIns) {
     List<CheckIn> pendingCheckIns = new ArrayList<>();
     List<CheckIn> allPending =
-        checkInRepository.findByEnrollmentIdAndStatusOrderByScheduleDateDesc(
-            enrollmentId, CheckInStatus.PENDING);
+        checkIns.stream()
+            .filter(c -> c.getStatus() == CheckInStatus.PENDING)
+            .filter(c -> c.getCheckInType() != null)
+            .sorted(Comparator.comparing(CheckIn::getScheduleDate).reversed())
+            .toList();
+
     LocalDate lastPendingDate = null;
     for (CheckIn ci : allPending) {
       if (lastPendingDate == null) {
@@ -276,12 +320,15 @@ public class CheckInServiceImpl implements CheckInService {
 
     String enrollmentId = enrollment.getId();
 
-    checkInData.setPending(this.getMostRecentPendingCheckins(enrollmentId));
+    // load check-ins for enrollment *once* to determine scheduling dates
+    List<CheckIn> checkins =
+        checkInRepository.findByEnrollmentIdOrderByScheduleDateDesc(enrollmentId);
+
     // need to determine checkin type to set survey for program
     // or override if combo and today is only oral or symptom
     CheckInType checkInType = null;
-    List<CheckIn> pendingList = new ArrayList<CheckIn>();
-    for (CheckIn checkIn : checkInData.getPending()) {
+    List<CheckIn> pendingList = new ArrayList<>();
+    for (CheckIn checkIn : getMostRecentPendingCheckins(checkins)) {
       CheckInType type = checkIn.getCheckInType();
       if (checkInType == null) {
         checkInType = type;
@@ -304,36 +351,37 @@ public class CheckInServiceImpl implements CheckInService {
     // day
     // note this logic will be replaced by the program logic below
     // HT CX
-    if (SURVEY_IDS.get("ORAL_ADHERENCE_HT_CX").equalsIgnoreCase(enrollment.getSurveyId())) {
+    if (SurveyId.ORAL_ADHERENCE_HT_CX.equalsIgnoreCase(enrollment.getSurveyId())) {
       if (checkInType == CheckInType.ORAL || (pendingList.isEmpty() && hasMissedOral))
-        enrollment.setSurveyId(SURVEY_IDS.get("ORAL_ADHERENCE_CX"));
+        enrollment.setSurveyId(SurveyId.ORAL_ADHERENCE_CX);
 
-      if (checkInType == CheckInType.SYMPTOM)
-        enrollment.setSurveyId(SURVEY_IDS.get("HEALTH_TRACKER_CX"));
+      if (checkInType == CheckInType.SYMPTOM) enrollment.setSurveyId(SurveyId.HEALTH_TRACKER_CX);
     }
 
     // ORAL HT PX
-    if (SURVEY_IDS.get("ORAL_ADHERENCE_HT_PX").equalsIgnoreCase(enrollment.getSurveyId())) {
+    if (SurveyId.ORAL_ADHERENCE_HT_PX.equalsIgnoreCase(enrollment.getSurveyId())) {
       if (checkInType == CheckInType.ORAL || (pendingList.isEmpty() && hasMissedOral))
-        enrollment.setSurveyId(SURVEY_IDS.get("ORAL_ADHERENCE_PX"));
+        enrollment.setSurveyId(SurveyId.ORAL_ADHERENCE_PX);
 
-      if (checkInType == CheckInType.SYMPTOM)
-        enrollment.setSurveyId(SURVEY_IDS.get("HEALTH_TRACKER_PX"));
+      if (checkInType == CheckInType.SYMPTOM) enrollment.setSurveyId(SurveyId.HEALTH_TRACKER_PX);
     }
 
     // if we have program id, get program config, and get surveyId
     String surveyId =
-        getSurveyIdForProgram(checkInType, enrollment, pendingList.isEmpty() && hasMissedOral);
+        surveyConfigService.getSurveyIdForProgram(
+            checkInType, enrollment, pendingList.isEmpty() && hasMissedOral);
     if (StringUtils.isNotBlank(surveyId)) {
       log.debug("setting survey id to {}", surveyId);
       enrollment.setSurveyId(surveyId);
     }
 
     checkInData.setMissed(missedOrals);
-    checkInData.setCompletedCount(customCheckInRepository.getCompletedCount(enrollmentId));
-    checkInData.setTotalCount(customCheckInRepository.getTotalCount(enrollmentId));
+    // TODO: implement following methods using in-memory check-ins (no need to go back to the db for
+    // these answers)
+    checkInData.setCompletedCount(checkInRepository.getCompletedCount(enrollmentId));
+    checkInData.setTotalCount(checkInRepository.getTotalCount(enrollmentId));
 
-    int adherencePercent = Math.round(customCheckInRepository.getAdherencePercent(enrollmentId));
+    int adherencePercent = Math.round(checkInRepository.getAdherencePercent(enrollmentId));
     checkInData.setAdherencePercent(adherencePercent);
 
     checkInData.setEnrollment(enrollment);
@@ -341,26 +389,31 @@ public class CheckInServiceImpl implements CheckInService {
       checkInData.setUser(getPatientInfo(enrollment.getClinicId(), enrollment.getPatientId()));
     }
 
-    LocalDate nextCheckInDate = schedulingService.getNextCheckInDate(enrollment);
+    LocalDateTime nextCheckInDate =
+        CheckInDates.forEnrollment(enrollment, checkins).getNextCheckInDate();
     if (nextCheckInDate != null) {
       CheckIn nextCheckIn = new CheckIn();
-      nextCheckIn.setScheduleDate(nextCheckInDate);
-      nextCheckIn.setScheduleTime(
-          LocalTime.parse(enrollment.getReminderTime(), DateTimeFormatter.ofPattern("H:mm")));
+      nextCheckIn.setScheduleDate(nextCheckInDate.toLocalDate());
+      nextCheckIn.setScheduleTime(nextCheckInDate.toLocalTime());
       checkInData.setNext(nextCheckIn);
       checkInData.setNextCheckIn(
           LocalDateTime.of(nextCheckIn.getScheduleDate(), nextCheckIn.getScheduleTime()));
     }
 
-    populateCheckInDates(checkInData, enrollment);
+    populateCheckInDates(checkInData, enrollment, checkins);
 
+    // TODO remov
     // set medication taken flag
     checkInData
         .getPending()
         .forEach(
             pending -> {
-              pending.setMedicationTaken(
-                  checkInRepository.medicationTaken(enrollmentId, pending.getCheckInType()) > 0);
+              boolean medicationTaken =
+                  checkins.stream()
+                      .filter(c -> c.getStatus() == CheckInStatus.COMPLETED)
+                      .filter(c -> c.getCheckInType() == pending.getCheckInType())
+                      .anyMatch(c -> c.getMedicationTaken() == Boolean.TRUE);
+              pending.setMedicationTaken(medicationTaken);
             });
 
     checkInData.setIsProCtcaeFormat(proFormatManager.followsCtcaeStandard(enrollment));
@@ -368,70 +421,16 @@ public class CheckInServiceImpl implements CheckInService {
     return checkInData;
   }
 
-  private String getSurveyIdForProgram(
-      CheckInType checkInType, Enrollment enrollment, boolean emptyPendingAndMissedOral) {
-    if (checkInType != null && StringUtils.isNotBlank(enrollment.getProgramId())) {
-      ProgramConfig programConfig =
-          this.surveyConfigService.getProgramConfig(enrollment.getProgramId());
-      List<ProgramConfig.SurveyDef> surveyDefs = programConfig.getSurveys();
-      for (ProgramConfig.SurveyDef surveyDef : surveyDefs) {
-        if (checkInType.name().equalsIgnoreCase(surveyDef.getType())) {
-          String key =
-              enrollment.isManualCollect()
-                  ? ProgramConfig.CLINIC_COLLECT
-                  : ProgramConfig.PATIENT_COLLECT;
+  private void populateCheckInDates(
+      CheckInData checkInData, Enrollment enrollment, List<CheckIn> checkins) {
+    var oralCheckInSummary = CheckInDates.forCheckInType(enrollment, CheckInType.ORAL, checkins);
+    checkInData.setLastOralCheckIn(oralCheckInSummary.getLastCheckInDate());
+    checkInData.setNextOralCheckIn(oralCheckInSummary.getNextCheckInDate());
 
-          String surveyId;
-          if (checkInType.equals(CheckInType.COMBO) && emptyPendingAndMissedOral) {
-            surveyId =
-                enrollment.isManualCollect()
-                    ? SURVEY_IDS.get("ORAL_ADHERENCE_CX")
-                    : SURVEY_IDS.get("ORAL_ADHERENCE_PX");
-          } else {
-            surveyId = surveyDef.getSurveyIds().getOrDefault(key, null);
-          }
-
-          return surveyId;
-        }
-      }
-    }
-    return null;
-  }
-
-  private void populateCheckInDates(CheckInData checkInData, Enrollment enrollment) {
-
-    LocalTime time =
-        LocalTime.parse(enrollment.getReminderTime(), DateTimeFormatter.ofPattern("H:mm"));
-
-    LocalDate nextOralCheckIn = schedulingService.getNextCheckInDate(enrollment, CheckInType.ORAL);
-    if (nextOralCheckIn != null) {
-      checkInData.setNextOralCheckIn(LocalDateTime.of(nextOralCheckIn, time));
-    }
-
-    LocalDate nextSymptomCheckIn =
-        schedulingService.getNextCheckInDate(enrollment, CheckInType.SYMPTOM);
-    if (nextSymptomCheckIn != null) {
-      checkInData.setNextSymptomCheckIn(LocalDateTime.of(nextSymptomCheckIn, time));
-    }
-
-    String enrollmentId = enrollment.getId();
-
-    CheckIn lastOralCheckIn =
-        checkInRepository.findTopByEnrollmentIdAndCheckInTypeOrderByScheduleDateDesc(
-            enrollmentId, CheckInType.ORAL);
-    if (lastOralCheckIn != null) {
-      checkInData.setLastOralCheckIn(
-          LocalDateTime.of(lastOralCheckIn.getScheduleDate(), lastOralCheckIn.getScheduleTime()));
-    }
-
-    CheckIn lastSymptomCheckIn =
-        checkInRepository.findTopByEnrollmentIdAndCheckInTypeOrderByScheduleDateDesc(
-            enrollmentId, CheckInType.SYMPTOM);
-    if (lastSymptomCheckIn != null) {
-      checkInData.setLastSymptomCheckIn(
-          LocalDateTime.of(
-              lastSymptomCheckIn.getScheduleDate(), lastSymptomCheckIn.getScheduleTime()));
-    }
+    var symptomCheckInSummary =
+        CheckInDates.forCheckInType(enrollment, CheckInType.SYMPTOM, checkins);
+    checkInData.setNextSymptomCheckIn(symptomCheckInSummary.getNextCheckInDate());
+    checkInData.setLastSymptomCheckIn(symptomCheckInSummary.getLastCheckInDate());
   }
 
   private void setCheckInFields(
@@ -552,7 +551,8 @@ public class CheckInServiceImpl implements CheckInService {
       surveyItemPayloads.removeIf(isInvalid);
     }
 
-    // ensure payloads without id are last so we can use other payloads info when we backfill
+    // ensure payloads without id are last so we can use other payloads info when we
+    // backfill
     surveyItemPayloads.sort(
         (SurveyItemPayload a, SurveyItemPayload b) -> {
           if (a.hasNullOrBlankId() && !b.hasNullOrBlankId()) {
@@ -619,7 +619,8 @@ public class CheckInServiceImpl implements CheckInService {
       }
     }
 
-    // Make rescehdule call only after all changes to existing checkins are done to avoid concurrent
+    // Make rescehdule call only after all changes to existing checkins are done to
+    // avoid concurrent
     // DB updates
     if (needToReschedule) {
       LocalDate submittedStartDate =
@@ -647,9 +648,10 @@ public class CheckInServiceImpl implements CheckInService {
         || (clinicConfig != null && !clinicConfig.isFeatureEnabled("patient-reported-start-date")))
       return null;
 
-    // completedCount check will make sure that the user has not completed and check ins prior to
+    // completedCount check will make sure that the user has not completed and check
+    // ins prior to
     // this one
-    int completedCount = Math.round(customCheckInRepository.getCompletedCount(e.getId()));
+    int completedCount = Math.round(checkInRepository.getCompletedCount(e.getId()));
     if (e.getFirstCheckInResponseDate() == null && completedCount == 0) {
       e.setFirstCheckInResponseDate(LocalDate.now());
       enrollmentRepository.save(e);
@@ -779,7 +781,8 @@ public class CheckInServiceImpl implements CheckInService {
         this.checkInRepository.findTopByEnrollmentIdAndCheckInTypeAndStatusOrderByScheduleDateDesc(
             enrollmentId, checkInType, CheckInStatus.COMPLETED);
     CheckIn lastCompleted = checkIns.findFirst().orElse(null);
-    // get valid date for search, using EPOCH (1970-01-01) as min is (-999999999-01-01), which fails
+    // get valid date for search, using EPOCH (1970-01-01) as min is
+    // (-999999999-01-01), which fails
     // conversion to Date in mongo
     LocalDate lastCompletedDate =
         lastCompleted == null ? LocalDate.EPOCH : lastCompleted.getScheduleDate();
@@ -790,5 +793,70 @@ public class CheckInServiceImpl implements CheckInService {
                 enrollmentId, checkInType, CheckInStatus.MISSED, lastCompletedDate);
 
     return missedCheckIns.limit(limit).collect(Collectors.toList());
+  }
+
+  private Map<String, CheckInSchedule> buildSchedules(
+      Enrollment enrollment, List<CheckIn> checkIns) {
+    var schedules = new HashMap<String, CheckInSchedule>();
+    enrollment
+        .getSchedules()
+        .forEach(
+            s -> {
+              String scheduleId = s.getId() != null ? s.getId() : s.getCheckInType().toString();
+              s.setCurrentCycleStartDate(enrollment.getCurrentCycleStartDate());
+              if (enrollment.getCurrentCycleNumber() != null) {
+                s.setCurrentCycleNumber(enrollment.getCurrentCycleNumber().intValue());
+              }
+              s.setStatus(CheckInScheduleStatus.fromEnrollmentStatus(enrollment.getStatus()));
+              schedules.put(scheduleId, s);
+            });
+    return schedules;
+  }
+
+  private List<CheckIn> buildPendingCheckins(Enrollment enrollment) {
+    boolean hasDonePracticeCheckIn =
+        practiceCheckInRepository
+            .findFirstByClinicIdAndPatientId(enrollment.getClinicId(), enrollment.getPatientId())
+            .isPresent();
+
+    List<CheckIn> pendingCheckIns =
+        checkInRepository.findByStatus(enrollment.getId(), CheckInStatus.PENDING);
+    final boolean hasCompletedACheckIn =
+        checkInRepository.hasCompletedACheckIn(enrollment.getPatientId());
+    if (!hasDonePracticeCheckIn && !hasCompletedACheckIn && pendingCheckIns.isEmpty()) {
+      List<CheckInSchedule> schedules = enrollment.getSchedules();
+      // TODO: handle non oral/symptom surveys. Do we create practice checkIns for them?
+      List<CheckIn> practiceCheckIns =
+          schedules.stream()
+              .filter(s -> s.getStatus() == CheckInScheduleStatus.ACTIVE)
+              .map(s -> checkInCreationService.buildPracticeCheckIn(enrollment, s))
+              .sorted()
+              .toList();
+      return practiceCheckIns;
+    }
+
+    if (pendingCheckIns.isEmpty()) {
+      return pendingCheckIns;
+    }
+
+    boolean hasOralCheckIn =
+        pendingCheckIns.stream().anyMatch(pc -> SurveyId.isOralSurvey(pc.getSurveyId()));
+
+    for (var pendingCheckIn : pendingCheckIns) {
+      if (!hasOralCheckIn
+          && (SurveyId.isOralSurvey(pendingCheckIn.getSurveyId())
+              || SurveyId.isSymptomSurvey(pendingCheckIn.getSurveyId()))) {
+        var missedCheckIns = getMissedCheckinsForBackfill(enrollment.getId(), 6, CheckInType.ORAL);
+        pendingCheckIn.getCheckInParameters().put("missedCheckIns", missedCheckIns);
+      }
+
+      if (pendingCheckIn.getCreatedReason() == ReasonForCheckInCreation.SCHEDULED
+          && !hasDonePracticeCheckIn
+          && !hasCompletedACheckIn) {
+        pendingCheckIn.getCheckInParameters().put("isGuided", true);
+      }
+    }
+
+    return pendingCheckIns.stream().sorted().toList();
   }
 }

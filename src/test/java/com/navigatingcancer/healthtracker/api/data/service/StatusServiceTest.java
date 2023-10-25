@@ -10,11 +10,11 @@ import com.navigatingcancer.healthtracker.api.data.model.CheckInData;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInType;
 import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
-import com.navigatingcancer.healthtracker.api.data.repo.CustomCheckInRepository;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
+import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.HealthTrackerStatusRepository;
 import com.navigatingcancer.healthtracker.api.rest.representation.HealthTrackerStatusResponse;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import java.util.*;
 import org.junit.Assert;
 import org.junit.Test;
@@ -32,7 +32,7 @@ public class StatusServiceTest {
 
   @MockBean private HealthTrackerStatusRepository statusRepository;
 
-  @MockBean private CustomCheckInRepository customCheckInRepository;
+  @MockBean private CheckInRepository checkInRepository;
 
   @MockBean private CheckInService checkInService;
 
@@ -81,9 +81,9 @@ public class StatusServiceTest {
     HealthTrackerStatus status2 = new HealthTrackerStatus();
     status2.setId(eid2);
 
-    when(customCheckInRepository.findCheckIns(any(List.class), any(), eq(CheckInType.SYMPTOM)))
+    when(checkInRepository.findCheckIns(any(List.class), any(), eq(CheckInType.SYMPTOM)))
         .thenReturn(Arrays.asList(eid1));
-    when(customCheckInRepository.findCheckIns(any(List.class), any(), eq(CheckInType.ORAL)))
+    when(checkInRepository.findCheckIns(any(List.class), any(), eq(CheckInType.ORAL)))
         .thenReturn(Arrays.asList(eid2));
     when(checkInService.getCheckInDataByEnrollmentIDs(any(List.class), anyBoolean()))
         .thenReturn(Arrays.asList(checkIn1, checkIn2));

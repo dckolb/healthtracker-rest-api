@@ -1,0 +1,124 @@
+[
+    {
+        "_id": ObjectId("5d1d0828af5955000126982d"),
+        "patientId": NumberLong(5),
+        "clinicId": NumberLong(1),
+        "locationId": NumberLong(1),
+        "status": "ACTIVE",
+        "emailAddress": "rmarckel@navigatingcancer.com",
+        "alerts": false,
+        "medication": "Xtandi",
+        "txStartDate": ISODate("2019-07-03T00:00:00Z"),
+        "cycles": 1,
+        "cycleNumber": 1,
+        "daysInCycle": 1,
+        "reminderTime": "13:00",
+        "reminderTimeZone": "America/Los_Angeles",
+        "schedules": [
+            {
+                "startDate": ISODate("2019-07-03T00:00:00Z"),
+                "endDate": ISODate("2019-07-03T00:00:00Z"),
+                "checkInType": "ORAL",
+                "checkInFrequency": "DAILY",
+                "checkInDays": [ ISODate("2019-07-03T00:00:00Z")
+                ],
+                "weeklyDays": [],
+                "cycleDays": []
+            },
+            {
+                "startDate": ISODate("2019-07-03T00:00:00Z"),
+                "endDate": ISODate("2019-07-03T00:00:00Z"),
+                "checkInType": "SYMPTOM",
+                "checkInFrequency": "DAILY",
+                "checkInDays": [ ISODate("2019-07-03T00:00:00Z")
+                ],
+                "weeklyDays": [],
+                "cycleDays": []
+            }
+        ],
+        "url": "https://patient-experience.nc-acceptance.com/GbdGUdty",
+        "statusLogs": [
+            {
+                "status": "COMPLETED"
+            }
+        ],
+        "version": NumberLong(2),
+        "createdDate": ISODate("2019-07-03T19:55:20.368Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-03T22:04:05.952Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.Enrollment"
+    },
+    {
+        "_id": ObjectId("5ced72358b2a1a0001d27f5c"),
+        "patientId": NumberLong(21),
+        "clinicId": NumberLong(21),
+        "locationId": NumberLong(21),
+        "status": "ACTIVE",
+        "emailAddress": "string",
+        "phoneNumber": "string",
+        "alerts": true,
+        "medication": "Test",
+        "txStartDate": ISODate("2019-05-23T00:00:00Z"),
+        "endDate": ISODate("2019-06-05T00:00:00Z"),
+        "cycles": 1,
+        "cycleNumber": 1,
+        "daysInCycle": 1,
+        "repeat": 0,
+        "reminderTime": "11:00",
+        "reminderTimeZone": "America/Los_Angeles",
+        "schedules": [
+            {
+                "startDate": ISODate("2019-05-28T00:00:00Z"),
+                "endDate": ISODate("2019-06-05T00:00:00Z"),
+                "checkInType": "ORAL",
+                "checkInFrequency": "WEEKDAY"
+            },
+            {
+                "startDate": ISODate("2019-05-28T00:00:00Z"),
+                "endDate": ISODate("2019-06-05T00:00:00Z"),
+                "checkInType": "SYMPTOM",
+                "checkInFrequency": "WEEKDAY"
+            }
+        ],
+        "version": NumberLong(0),
+        "createdDate": ISODate("2019-05-28T17:39:01.973Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-05-28T17:39:01.973Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.Enrollment"
+    },
+    {
+        "_id": ObjectId("5ced776488c8c40001d02e05"),
+        "patientId": NumberLong(221),
+        "clinicId": NumberLong(221),
+        "locationId": NumberLong(221),
+        "status": "ACTIVE",
+        "emailAddress": "string",
+        "phoneNumber": "string",
+        "alerts": true,
+        "medication": "Test",
+        "txStartDate": ISODate("2019-05-23T00:00:00Z"),
+        "endDate": ISODate("2019-05-25T00:00:00Z"),
+        "cycles": 1,
+        "cycleNumber": 1,
+        "daysInCycle": 1,
+        "repeat": 0,
+        "reminderTime": "11:00",
+        "reminderTimeZone": "America/Los_Angeles",
+        "schedules": [
+            {
+                "startDate": ISODate("2019-05-28T00:00:00Z"),
+                "endDate": ISODate("2019-05-28T00:00:00Z"),
+                "checkInType": "ORAL",
+                "checkInFrequency": "DAILY"
+            }
+        ],
+        "version": NumberLong(0),
+        "createdDate": ISODate("2019-05-28T18:01:07.993Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-05-28T18:01:07.993Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.Enrollment"
+    }
+]

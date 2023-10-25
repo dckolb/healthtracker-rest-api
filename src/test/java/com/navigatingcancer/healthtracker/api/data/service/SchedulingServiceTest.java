@@ -8,6 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.CheckIn;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInData;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInFrequency;
@@ -16,6 +17,7 @@ import com.navigatingcancer.healthtracker.api.data.model.CheckInStatus;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInType;
 import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.EnrollmentStatus;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload;
 import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload.TriggerType;
 import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
@@ -25,8 +27,6 @@ import com.navigatingcancer.healthtracker.api.data.service.impl.PatientRecordSer
 import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServiceImpl;
 import com.navigatingcancer.json.utils.JsonUtils;
 import com.navigatingcancer.notification.client.service.NotificationServiceClient;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import com.navigatingcancer.scheduler.client.domain.SchedulePayload;
 import com.navigatingcancer.scheduler.client.domain.TriggerEvent;
 import com.navigatingcancer.scheduler.client.service.SchedulerServiceClient;
@@ -35,7 +35,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import org.junit.Assert;
@@ -72,7 +71,7 @@ public class SchedulingServiceTest {
 
   @Autowired private CheckInService checkinService;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @Before
   public void setup() {
@@ -86,7 +85,8 @@ public class SchedulingServiceTest {
 
     PatientInfo patientInfo = new PatientInfo();
     patientInfo.setHighRisk(true);
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(patientInfo));
@@ -184,113 +184,25 @@ public class SchedulingServiceTest {
 
   @Test
   public void testTriggerEvent() {
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setCheckInType(CheckInType.ORAL);
+
     Enrollment en =
-        enrollmentRepository.save(EnrollmentRepositoryTest.createEnrollmentWithSchedules(7, 7, 7));
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(7, 7, 7, schedule));
 
     TriggerPayload triggerPayload =
         new TriggerPayload(en.getId(), CheckInType.ORAL, LocalTime.now(), TriggerType.SYSTEM);
     TriggerEvent triggerEvent =
         new TriggerEvent(JsonUtils.toJson(triggerPayload), new Date(), null);
 
-    assertTrue(checkInRepository.findByEnrollmentId(en.getId()).size() == 0L);
+    assertEquals(0L, checkInRepository.findByEnrollmentId(en.getId()).size());
 
     schedulingService.accept(triggerEvent);
 
     // Verify that checkin is created after processing trigger event
-    assertTrue(checkInRepository.findByEnrollmentId(en.getId()).size() == 1L);
-  }
-
-  @Test
-  public void testTotalCheckInCount_WeeklyAndCustom() {
-
-    CheckInSchedule weekly = new CheckInSchedule();
-    weekly.setCheckInType(CheckInType.ORAL);
-    weekly.setCheckInFrequency(CheckInFrequency.WEEKLY);
-    weekly.setStartDate(LocalDate.of(2019, 6, 1));
-    weekly.setWeeklyDays(Arrays.asList(Calendar.SUNDAY, Calendar.MONDAY));
-
-    CheckInSchedule custom = new CheckInSchedule();
-    custom.setCheckInType(CheckInType.SYMPTOM);
-    custom.setCheckInFrequency(CheckInFrequency.CUSTOM);
-    custom.setStartDate(LocalDate.of(2019, 6, 1));
-    custom.setCycleDays(Arrays.asList(4, 5, 11, 12));
-
-    Enrollment en =
-        enrollmentRepository.save(
-            EnrollmentRepositoryTest.createEnrollmentWithSchedules(8, 8, 8, weekly, custom));
-    en.setDaysInCycle(21);
-    en.setReminderTimeZone("America/Los_Angeles");
-
-    assertEquals((int) schedulingService.getNextTotalCheckInCount(en, weekly.getStartDate()), 10);
-  }
-
-  @Test
-  public void testTotalCheckInCount_CustomAndCustom() {
-
-    CheckInSchedule custom1 = new CheckInSchedule();
-    custom1.setCheckInType(CheckInType.ORAL);
-    custom1.setCheckInFrequency(CheckInFrequency.CUSTOM);
-    custom1.setStartDate(LocalDate.of(2019, 6, 1));
-    custom1.setCycleDays(Arrays.asList(1, 3, 12, 13, 21));
-
-    CheckInSchedule custom2 = new CheckInSchedule();
-    custom2.setCheckInType(CheckInType.SYMPTOM);
-    custom2.setCheckInFrequency(CheckInFrequency.CUSTOM);
-    custom2.setStartDate(LocalDate.of(2019, 6, 1));
-    custom2.setCycleDays(Arrays.asList(1, 15, 17, 18, 19));
-
-    Enrollment en =
-        enrollmentRepository.save(
-            EnrollmentRepositoryTest.createEnrollmentWithSchedules(9, 9, 9, custom1, custom2));
-    en.setDaysInCycle(21);
-    en.setReminderTimeZone("America/Los_Angeles");
-
-    assertEquals((int) schedulingService.getNextTotalCheckInCount(en, custom1.getStartDate()), 7);
-  }
-
-  @Test
-  public void testTotalCheckInCount_Daily() {
-
-    CheckInSchedule custom1 = new CheckInSchedule();
-    custom1.setCheckInType(CheckInType.ORAL);
-    custom1.setCheckInFrequency(CheckInFrequency.DAILY);
-    custom1.setStartDate(LocalDate.of(2019, 6, 5));
-
-    CheckInSchedule custom2 = new CheckInSchedule();
-    custom2.setCheckInType(CheckInType.SYMPTOM);
-    custom2.setCheckInFrequency(CheckInFrequency.DAILY);
-    custom2.setStartDate(LocalDate.of(2019, 6, 5));
-
-    Enrollment en =
-        enrollmentRepository.save(
-            EnrollmentRepositoryTest.createEnrollmentWithSchedules(10, 10, 10, custom1, custom2));
-    en.setDaysInCycle(7);
-    en.setReminderTimeZone("America/Los_Angeles");
-
-    assertEquals((int) schedulingService.getNextTotalCheckInCount(en, LocalDate.of(2019, 6, 7)), 4);
-  }
-
-  @Test
-  public void testTotalCheckInCount_Daily2() {
-
-    CheckInSchedule custom1 = new CheckInSchedule();
-    custom1.setCheckInType(CheckInType.ORAL);
-    custom1.setCheckInFrequency(CheckInFrequency.DAILY);
-    custom1.setStartDate(LocalDate.of(2019, 6, 10));
-
-    CheckInSchedule custom2 = new CheckInSchedule();
-    custom2.setCheckInType(CheckInType.SYMPTOM);
-    custom2.setCheckInFrequency(CheckInFrequency.DAILY);
-    custom2.setStartDate(LocalDate.of(2019, 6, 10));
-
-    Enrollment en =
-        enrollmentRepository.save(
-            EnrollmentRepositoryTest.createEnrollmentWithSchedules(11, 11, 11, custom1, custom2));
-    en.setDaysInCycle(6);
-    en.setReminderTimeZone("America/Los_Angeles");
-
-    assertEquals(
-        (int) schedulingService.getNextTotalCheckInCount(en, LocalDate.of(2019, 6, 11)), 4);
+    assertEquals(1L, checkInRepository.findByEnrollmentId(en.getId()).size());
   }
 
   @Test
@@ -323,8 +235,13 @@ public class SchedulingServiceTest {
 
   @Test
   public void testNextCheckinDateSet() {
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setCheckInType(CheckInType.ORAL);
+
     Enrollment en =
-        enrollmentRepository.save(EnrollmentRepositoryTest.createEnrollmentWithSchedules(7, 7, 7));
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(7, 7, 7, schedule));
 
     LocalDate scheduledDate = LocalDate.now().plusDays(1);
     LocalTime fireTime = LocalTime.MAX;

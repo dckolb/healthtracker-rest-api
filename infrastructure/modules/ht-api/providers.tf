@@ -3,9 +3,12 @@ terraform {
 
   required_providers {
     aws = {
-      # pinned to 3.15 until https://github.com/hashicorp/terraform-provider-aws/issues/19318 is resolved
       source  = "hashicorp/aws"
-      version = "3.58"
+      version = "~> 4.55.0"
+    }
+    datadog = {
+      source  = "datadog/datadog"
+      version = "~> 2.18"
     }
   }
 }
@@ -22,4 +25,26 @@ provider "aws" {
       team      = var.nc_conf.team
     }
   }
+}
+
+provider "datadog" {
+  api_key = data.aws_secretsmanager_secret_version.datadog_api_key.secret_string
+  app_key = data.aws_secretsmanager_secret_version.datadog_app_key.secret_string
+}
+
+data "aws_secretsmanager_secret" "datadog_api_key" {
+  name = "${var.nc_conf.env}/datadog-api-key"
+}
+
+data "aws_secretsmanager_secret_version" "datadog_api_key" {
+  secret_id = data.aws_secretsmanager_secret.datadog_api_key.id
+}
+
+# There currently is only one value used across all 4 envs
+data "aws_secretsmanager_secret" "datadog_app_key" {
+  name = "datadog-app-key-${var.nc_conf.service}"
+}
+
+data "aws_secretsmanager_secret_version" "datadog_app_key" {
+  secret_id = data.aws_secretsmanager_secret.datadog_app_key.id
 }

@@ -4,7 +4,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.patientrecord.EnrollmentUpdatePayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
@@ -15,8 +17,6 @@ import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServic
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTrackerStatusCommand;
 import com.navigatingcancer.json.utils.JsonUtils;
 import com.navigatingcancer.notification.client.service.NotificationServiceClient;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -45,7 +45,7 @@ public class MissedCheckInsTest {
 
   @Autowired HealthTrackerStatusService healthTrackerStatusService;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private NotificationServiceClient notificationServiceClient;
 
@@ -61,7 +61,8 @@ public class MissedCheckInsTest {
     PatientInfo patientInfo = new PatientInfo();
     patientInfo.setHighRisk(true);
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(patientInfo));
@@ -107,10 +108,10 @@ public class MissedCheckInsTest {
   @Test
   public void whenMissThreeCheckIns_shouldSayThreeMissedCheckins_andShouldBeActionNeeded() {
     Enrollment enrollment = createEnrollment(1L, 1L, 1L);
-    createCheckInMissed(enrollment.getId(), LocalDate.now().minusDays(3));
-    createCheckInMissed(enrollment.getId(), LocalDate.now().minusDays(2));
-    createCheckInMissed(enrollment.getId(), LocalDate.now().minusDays(1));
-    createCheckInPending(enrollment.getId(), LocalDate.now());
+    CheckIn checkIn1 = createCheckInMissed(enrollment.getId(), LocalDate.now().minusDays(3));
+    CheckIn checkIn2 = createCheckInMissed(enrollment.getId(), LocalDate.now().minusDays(2));
+    CheckIn checkIn3 = createCheckInMissed(enrollment.getId(), LocalDate.now().minusDays(1));
+    CheckIn checkIn4 = createCheckInPending(enrollment.getId(), LocalDate.now());
 
     doNothing().when(this.rabbitTemplate).convertAndSend(isA(String.class), isA(String.class));
 
@@ -119,7 +120,11 @@ public class MissedCheckInsTest {
     ArgumentCaptor<HealthTrackerStatus> argumentCaptorStatus =
         ArgumentCaptor.forClass(HealthTrackerStatus.class);
 
-    HealthTrackerStatusCommand command = new HealthTrackerStatusCommand(enrollment.getId(), null);
+    HealthTrackerStatusCommand command =
+        new HealthTrackerStatusCommand(
+            enrollment.getId(),
+            null,
+            List.of(checkIn1.getId(), checkIn2.getId(), checkIn3.getId()));
     this.healthTrackerStatusService.accept(command);
 
     // capture what's being sent to rabbit
@@ -145,14 +150,14 @@ public class MissedCheckInsTest {
     Enrollment enrollment = createEnrollment(1L, 1L, 2L);
     LocalDate ld = LocalDate.now();
     long dateOffset = 0l;
-    createCheckInPending(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInComplete(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
-    createCheckInComplete(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn1 = createCheckInPending(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn2 = createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn3 = createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn4 = createCheckInComplete(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn5 = createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn6 = createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn7 = createCheckInMissed(enrollment.getId(), ld.minusDays(dateOffset++));
+    CheckIn checkIn8 = createCheckInComplete(enrollment.getId(), ld.minusDays(dateOffset++));
 
     doNothing().when(this.rabbitTemplate).convertAndSend(isA(String.class), isA(String.class));
 
@@ -161,7 +166,9 @@ public class MissedCheckInsTest {
     ArgumentCaptor<HealthTrackerStatus> argumentCaptorStatus =
         ArgumentCaptor.forClass(HealthTrackerStatus.class);
 
-    HealthTrackerStatusCommand command = new HealthTrackerStatusCommand(enrollment.getId(), null);
+    HealthTrackerStatusCommand command =
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), null, List.of(checkIn3.getId(), checkIn2.getId()));
     this.healthTrackerStatusService.accept(command);
 
     // capture what's being sent to rabbit

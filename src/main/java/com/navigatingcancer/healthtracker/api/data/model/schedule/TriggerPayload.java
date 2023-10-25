@@ -1,29 +1,57 @@
 package com.navigatingcancer.healthtracker.api.data.model.schedule;
 
-import java.time.LocalTime;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInType;
-
-import lombok.AllArgsConstructor;
+import java.time.LocalTime;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TriggerPayload {
-	
-	public static enum TriggerType {
-		SYSTEM, REMINDER, STATUS,
-		ENROLLMENT_START, ENROLLMENT_END,
-		CYCLE_START, CYCLE_END
-	}
 
-	String enrollmentId;
-	CheckInType checkInType;
-	LocalTime checkInTime;
-	TriggerType type;
+  @Deprecated
+  public TriggerPayload(
+      String enrollmentId, CheckInType checkIntype, LocalTime checkInTime, TriggerType type) {
+    this.enrollmentId = enrollmentId;
+    this.checkInType = checkIntype;
+    this.checkInTime = checkInTime;
+    this.type = type;
+  }
 
+  public TriggerPayload(String enrollmentId, LocalTime checkInTime, TriggerType type) {
+    this.enrollmentId = enrollmentId;
+    this.checkInTime = checkInTime;
+    this.type = type;
+  }
+
+  public TriggerPayload(
+      String enrollmentId, String checkInScheduleId, LocalTime checkInTime, TriggerType type) {
+    this.enrollmentId = enrollmentId;
+    this.checkInScheduleId = checkInScheduleId;
+    this.checkInTime = checkInTime;
+    this.type = type;
+  }
+
+  public TriggerPayload() {}
+
+  public static enum TriggerType {
+    SYSTEM,
+    REMINDER,
+    STATUS,
+    ENROLLMENT_START,
+    ENROLLMENT_END,
+    CYCLE_START,
+    CYCLE_END
+  }
+
+  String enrollmentId;
+  String checkInScheduleId;
+  LocalTime checkInTime;
+  TriggerType type;
+
+  /**
+   * @deprecated use checkInScheduleId instead, this remains for backward compatibility with
+   *     pre-scheduled payloads
+   */
+  @Deprecated CheckInType checkInType;
 }

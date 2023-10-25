@@ -1,0 +1,42 @@
+HELP.md
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/jvm.config
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+*/__pycache__/
+venv*
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+/build/
+
+### VS Code ###
+.vscode/
+
+### MacOS ###
+**/.DS_STORE
+
+### Terragrunt ###
+.terragrunt-cache
+
+### Telepresence ###
+telepresence.env
+

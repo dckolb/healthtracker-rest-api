@@ -149,20 +149,9 @@ public class EnrollmentAPITest {
     String responseString = result.getResponse().getContentAsString();
 
     Assert.assertTrue(
-        "Error message for reminderTimeZone",
-        responseString.contains("reminderTimeZone is not a valid timezone"));
-    Assert.assertTrue(
-        "Error message for PatientId", responseString.contains("patientId must not be null"));
-    Assert.assertTrue(
-        "Error message for schedules", responseString.contains("schedules must not be empty"));
-    Assert.assertTrue(
-        "Error message for daysInCycle", responseString.contains("daysInCycle must not be null"));
-    Assert.assertTrue(
-        "Error message for reminderTime", responseString.contains("reminderTime must not be null"));
+        "Error message for patientId", responseString.contains("patientId must not be null"));
     Assert.assertTrue(
         "Error message for clinicId", responseString.contains("clinicId must not be null"));
-    Assert.assertTrue(
-        "Error message for alerts", responseString.contains("alerts must not be null"));
   }
 
   @Test

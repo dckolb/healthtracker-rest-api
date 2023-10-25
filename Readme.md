@@ -30,7 +30,7 @@ keytool -importcert -cacerts -file src/main/resources/rds-ca-2019-root.pem -stor
 ```
 
 ### Local Development
-To start the service locally in development mode, use `make run-local`. This requires access to the development Kubernetes cluster (eks-dev-2022). Once the service is listening, the swagger UI will open in your default browser.
+To start the service locally in development mode make sure your logged in to aws sso for direct (use `aws sso login --profile=direct`) then run `make run-local`. This requires access to the development Kubernetes cluster (eks-dev-2022). Once the service is listening, the swagger UI will open in your default browser.
 
 
 

@@ -2,11 +2,16 @@ package com.navigatingcancer.healthtracker.api.data.repo;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
+import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
+import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +25,22 @@ import org.springframework.test.context.junit4.SpringRunner;
 public class HealthTrackerStatusRepositoryTest {
 
   @Autowired private HealthTrackerStatusRepository repository;
+  private String testId = "111111111111111111111111";
+
+  @Before
+  public void setup() {
+    repository.deleteAll();
+
+    HealthTrackerStatus testStatus = new HealthTrackerStatus();
+    SurveyItemPayload item = new SurveyItemPayload();
+    item.setPayload(Map.of("foo", "bar"));
+    SurveyPayload payload = new SurveyPayload();
+    payload.setSymptoms(List.of(item));
+    testStatus.setSurveyPayload(payload);
+    testStatus.setId(testId);
+
+    repository.save(testStatus);
+  }
 
   @Test
   public void findStatuses_withFilters() {
@@ -154,5 +175,35 @@ public class HealthTrackerStatusRepositoryTest {
     }
     Assert.assertFalse(
         "should not contain status with other id", ids.contains(htStatusPersisted2.getId()));
+  }
+
+  @Test
+  public void findAndReplaceStatus_throwsOnInvalidArg() {
+    Assert.assertThrows(
+        IllegalArgumentException.class, () -> repository.findAndReplaceStatus(null));
+  }
+
+  @Test
+  public void findAndReplaceStatus_updates() {
+    HealthTrackerStatus status = new HealthTrackerStatus();
+    SurveyItemPayload item = new SurveyItemPayload();
+    Map<String, Object> payloadMap = Map.of("biz", "baz");
+    item.setPayload(payloadMap);
+    SurveyPayload payload = new SurveyPayload();
+    payload.setOral(List.of(item));
+    status.setSurveyPayload(payload);
+    status.setId(testId);
+
+    var currentCount = repository.count();
+    repository.findAndReplaceStatus(status);
+
+    Assert.assertEquals(currentCount, repository.count());
+
+    Optional<HealthTrackerStatus> statusResult = repository.findById(testId);
+
+    Assert.assertTrue(statusResult.isPresent());
+    Assert.assertEquals(
+        payloadMap, statusResult.get().getSurveyPayload().getOral().get(0).getPayload());
+    Assert.assertNull(statusResult.get().getSurveyPayload().getSymptoms());
   }
 }

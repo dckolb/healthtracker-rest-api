@@ -1,0 +1,15 @@
+{{ if not .Values.canaryRelease }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: healthtracker-api
+spec:
+  ambassador_id: public
+  {{- if .Values.ambassador.host }}
+  host: {{ .Values.ambassador.host }}
+  {{- end }}
+  prefix:  /ht-api
+  rewrite: /ht-api
+  service: {{ .Values.service.apiService }}
+  timeout_ms: 30000
+{{ end }}

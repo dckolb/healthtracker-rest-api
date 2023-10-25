@@ -1,11 +1,6 @@
 package com.navigatingcancer.healthtracker.api.rest.representation;
 
-import com.navigatingcancer.healthtracker.api.data.model.Adherence;
-import com.navigatingcancer.healthtracker.api.data.model.EHRDelivery;
-import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
-import com.navigatingcancer.healthtracker.api.data.model.ProReview;
-import com.navigatingcancer.healthtracker.api.data.model.ProReviewNote;
-import com.navigatingcancer.healthtracker.api.data.model.SideEffect;
+import com.navigatingcancer.healthtracker.api.data.model.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -58,11 +53,17 @@ public class ProReviewResponse {
   private List<String> checkInIds;
   private EHRDelivery ehrDelivery;
   private List<ProReviewNote> notes;
+  private List<ProReviewActivity> activities;
   private List<ProReviewSideEffect> sideEffects;
   private List<ProReviewAdherence> oralAdherence;
   private HealthTrackerStatus healthTrackerStatus;
 
-  public ProReviewResponse(ProReview proReview, List<ProReviewNote> proReviewNotes) {
+  /** Deprecated in favor of `activities`, to be removed with next major revision of API */
+  @Deprecated(forRemoval = true)
+  private List<Integer> patientActivityIds = List.of();
+
+  public ProReviewResponse(
+      ProReview proReview, List<ProReviewNote> proReviewNotes, List<ProReviewActivity> activities) {
     this.id = proReview.getId();
     this.clinicId = proReview.getClinicId();
     this.enrollmentId = proReview.getEnrollmentId();
@@ -70,6 +71,7 @@ public class ProReviewResponse {
     this.ehrDelivery = proReview.getEhrDelivery();
     this.healthTrackerStatus = proReview.getHealthTrackerStatus();
     this.notes = proReviewNotes;
+    this.activities = activities;
 
     this.sideEffects =
         Optional.ofNullable(proReview.getSideEffects()).orElse(Collections.emptyList()).stream()

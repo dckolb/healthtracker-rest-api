@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.*;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload;
 import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload.TriggerType;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
@@ -19,8 +21,6 @@ import com.navigatingcancer.healthtracker.api.data.service.impl.NotificationServ
 import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServiceImpl;
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTrackerStatusCommand;
 import com.navigatingcancer.json.utils.JsonUtils;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import com.navigatingcancer.scheduler.client.domain.TriggerEvent;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -28,6 +28,7 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
@@ -59,7 +60,7 @@ public class AutoEndTest {
 
   @Autowired HealthTrackerStatusService healthTrackerStatusService;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private NotificationService notificationService;
 
@@ -96,7 +97,8 @@ public class AutoEndTest {
     PatientInfo patientInfo = new PatientInfo();
     patientInfo.setHighRisk(false);
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(patientInfo));
@@ -194,9 +196,12 @@ public class AutoEndTest {
   private void doCheckIn(
       Enrollment enrollment, LocalDate scheduledDate, SurveyPayload surveyPayload) {
     // Make a checkin in call, that should set the checkin object state to complete
-    checkInService.checkIn(surveyPayload);
+    List<CheckIn> checkIns = checkInService.checkIn(surveyPayload);
     // make process status call explicitly
-    healthTrackerStatusService.processStatus(enrollment.getId(), null, surveyPayload);
+    healthTrackerStatusService.processStatus(
+        enrollment.getId(),
+        surveyPayload,
+        checkIns.stream().map(AbstractDocument::getId).collect(Collectors.toList()));
   }
 
   private void flushWorkerQueue() throws Exception {
@@ -221,7 +226,7 @@ public class AutoEndTest {
     SurveyPayload surveyPayload =
         createSurveyPayload(null, Collections.singletonList(happySurveyItemPayload));
     HealthTrackerStatusCommand command =
-        new HealthTrackerStatusCommand(enrollment.getId(), surveyPayload);
+        new HealthTrackerStatusCommand(enrollment.getId(), surveyPayload, List.of());
     this.healthTrackerStatusService.accept(command);
 
     // capture what's being sent to rabbit
@@ -270,7 +275,7 @@ public class AutoEndTest {
     SurveyPayload surveyPayload =
         createSurveyPayload(null, Collections.singletonList(happySurveyItemPayload));
     HealthTrackerStatusCommand command =
-        new HealthTrackerStatusCommand(enrollment.getId(), surveyPayload);
+        new HealthTrackerStatusCommand(enrollment.getId(), surveyPayload, List.of());
     this.healthTrackerStatusService.accept(command);
 
     // verify status is properly set

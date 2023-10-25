@@ -70,16 +70,19 @@ data "aws_iam_policy_document" "health_tracker_rest_api" {
     ]
   }
 
-  # Queues the scheduler can write to
   statement {
     sid = "ReadFromSqsQueuePermissions"
     actions = [
       "sqs:ReceiveMessage",
-      "sqs:GetQueueUrl"
+      "sqs:DeleteMessage",
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes"
     ]
 
     resources = [
-      for target_queue in data.aws_sqs_queue.read_queues : target_queue.arn
+      var.reminder_queue_arn,
+      var.status_queue_arn,
+      var.job_queue_arn
     ]
   }
 
@@ -87,18 +90,21 @@ data "aws_iam_policy_document" "health_tracker_rest_api" {
     sid = "WriteToSqsQueuePermissions"
     actions = [
       "sqs:SendMessage",
-      "sqs:GetQueueUrl"
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes"
     ]
 
     resources = [
-      for target_queue in data.aws_sqs_queue.write_queues : target_queue.arn
+      var.status_queue_arn,
+      var.job_queue_arn,
+      var.notification_queue_arn
     ]
   }
+
 }
 
 // Look up the secret and queues so we don't accidentally
 // create a policy for an invalid ARN
-
 data "aws_secretsmanager_secret" "service_secret" {
   name = "${var.nc_conf.env}/ht-api"
 }
@@ -109,22 +115,6 @@ data "aws_secretsmanager_secret" "shared_secret" {
 
 data "aws_secretsmanager_secret_version" "shared_secret" {
   secret_id = data.aws_secretsmanager_secret.shared_secret.id
-}
-
-data "aws_sqs_queue" "read_queues" {
-  for_each =  toset([
-    for target_queue_secret in var.read_queues_secrets :
-      nonsensitive(jsondecode(data.aws_secretsmanager_secret_version.shared_secret.secret_string)["${target_queue_secret}"])
-  ])
-  name = each.value
-}
-
-data "aws_sqs_queue" "write_queues" {
-  for_each =  toset([
-    for target_queue_secret in var.write_queues_secrets :
-      nonsensitive(jsondecode(data.aws_secretsmanager_secret_version.shared_secret.secret_string)["${target_queue_secret}"])
-  ])
-  name = each.value
 }
 
 data "terraform_remote_state" "eks" {

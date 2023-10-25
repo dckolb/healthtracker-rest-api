@@ -2,14 +2,6 @@ package com.navigatingcancer.healthtracker.api.data.service.impl;
 
 import static org.mockito.Mockito.doNothing;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.navigatingcancer.healthtracker.api.TestConfig;
@@ -17,10 +9,16 @@ import com.navigatingcancer.healthtracker.api.data.auth.Identity;
 import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.EnrollmentStatus;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.processor.model.ProFormatManager;
 import com.navigatingcancer.healthtracker.api.processor.model.SymptomDetails;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
-
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,148 +33,139 @@ import org.springframework.test.context.junit4.SpringRunner;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
-@ContextConfiguration(classes = {PatientRecordService.class, ProFormatManager.class, TestConfig.class})
+@ContextConfiguration(
+    classes = {PatientRecordService.class, ProFormatManager.class, TestConfig.class})
 public class PatientRecordServiceTest {
 
-    @Autowired
-    private PatientRecordService patientRecordService;
+  @Autowired private PatientRecordService patientRecordService;
 
-    @MockBean
-    RabbitTemplate rabbitTemplate;
+  @MockBean RabbitTemplate rabbitTemplate;
 
-    @MockBean
-    Identity identity;
+  @MockBean Identity identity;
 
-    @Test
-    public void testSentProToEhr() throws Exception {
-        ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
-        doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
+  @Test
+  public void testSentProToEhr() throws Exception {
+    ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
+    doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
 
-        String enrollmentId = UUID.randomUUID().toString();
-        patientRecordService.publishProSentToEhr(
-                enrollmentId,
-                "Test",
-                1L,
-                2L,
-                "fakeproReviewId",
-                "Health Tracker PRO"
-        );
+    String enrollmentId = UUID.randomUUID().toString();
+    patientRecordService.publishProSentToEhr(
+        enrollmentId, "Test", 1L, 2L, "fakeproReviewId", "Health Tracker PRO");
 
-        Map<String, Object> payload = extractPayload(valueCapture);
-        Assert.assertNotNull(payload.get("message_id"));
-        Assert.assertEquals(enrollmentId, payload.get("enrollment_id"));
-        Assert.assertEquals(1, payload.get("clinic_id"));
-        Assert.assertEquals(2, payload.get("patient_id"));
-        Assert.assertEquals("fakeproReviewId", payload.get("pro_review_id"));
-        Assert.assertEquals("Health Tracker PRO", payload.get("document_title"));
+    Map<String, Object> payload = extractPayload(valueCapture);
+    Assert.assertNotNull(payload.get("message_id"));
+    Assert.assertEquals(enrollmentId, payload.get("enrollment_id"));
+    Assert.assertEquals(1, payload.get("clinic_id"));
+    Assert.assertEquals(2, payload.get("patient_id"));
+    Assert.assertEquals("fakeproReviewId", payload.get("pro_review_id"));
+    Assert.assertEquals("Health Tracker PRO", payload.get("document_title"));
+  }
 
-    }
+  @Test
+  public void whenEnrollment_expectUTC() throws Exception {
+    Enrollment e = new Enrollment();
+    e.setId(UUID.randomUUID().toString());
+    e.setClinicId(1L);
+    e.setPatientId(2L);
+    e.setStatus(EnrollmentStatus.STOPPED);
 
-    @Test
-    public void whenEnrollment_expectUTC() throws Exception {
-        Enrollment e = new Enrollment();
-        e.setId(UUID.randomUUID().toString());
-        e.setClinicId(1L);
-        e.setPatientId(2L);
-        e.setStatus(EnrollmentStatus.STOPPED);
+    ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
+    doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
 
-        ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
-        doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
+    patientRecordService.publishEnrollmentCreated(e, identity);
 
-        patientRecordService.publishEnrollmentCreated(e, identity);
+    Map<String, Object> payload = extractPayload(valueCapture);
 
-        Map<String, Object> payload = extractPayload(valueCapture);
+    String rawDate = (String) payload.get("record_timestamp");
 
-        String rawDate = (String) payload.get("record_timestamp");
+    DateFormat df1 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    Date resultDate = df1.parse(rawDate);
 
-        DateFormat df1 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        Date resultDate = df1.parse(rawDate);
+    // if here, successfully parsed zoned date time
+    Assert.assertNotNull(((Date) resultDate).getTime());
+  }
 
-        // if here, successfully parsed zoned date time
-        Assert.assertNotNull(((Date) resultDate).getTime());
+  @Test
+  public void whenMissed_expectMissedDescription() throws Exception {
+    Enrollment e = new Enrollment();
+    e.setId(UUID.randomUUID().toString());
+    e.setClinicId(1L);
+    e.setPatientId(2L);
+    e.setStatus(EnrollmentStatus.ACTIVE);
 
-    }
+    ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
+    doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
 
-    @Test
-    public void whenMissed_expectMissedDescription() throws Exception {
-        Enrollment e = new Enrollment();
-        e.setId(UUID.randomUUID().toString());
-        e.setClinicId(1L);
-        e.setPatientId(2L);
-        e.setStatus(EnrollmentStatus.ACTIVE);
+    patientRecordService.publishMissedCheckIn(e, 5);
 
-        ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
-        doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
+    String str = valueCapture.getValue();
 
-        patientRecordService.publishMissedCheckIn(e, 5);
+    Assert.assertTrue(str.contains("missed check-in"));
+  }
 
-        String str = valueCapture.getValue();
+  @Test
+  public void whenEndCurrentCycle_expectEndCurrentCycle() throws Exception {
+    Enrollment e = new Enrollment();
+    e.setId(UUID.randomUUID().toString());
+    e.setClinicId(1L);
+    e.setPatientId(2L);
+    e.setStatus(EnrollmentStatus.ACTIVE);
 
-        Assert.assertTrue(str.contains("missed check-in"));
-    }
+    HealthTrackerStatus status = createStatus();
+    status.setEndCurrentCycle(true);
 
-    @Test
-    public void whenEndCurrentCycle_expectEndCurrentCycle() throws Exception {
-        Enrollment e = new Enrollment();
-        e.setId(UUID.randomUUID().toString());
-        e.setClinicId(1L);
-        e.setPatientId(2L);
-        e.setStatus(EnrollmentStatus.ACTIVE);
+    ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
+    doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
 
-        HealthTrackerStatus status = createStatus();
-        status.setEndCurrentCycle(true);
+    patientRecordService.publishProData(e, status, null);
 
-        ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
-        doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
+    Map<String, Object> payload = extractPayload(valueCapture);
 
-        patientRecordService.publishProData(e, status, null);
+    Boolean endCurrentCycle = (Boolean) payload.get("end_current_cycle");
 
-        Map<String, Object> payload = extractPayload(valueCapture);
+    Assert.assertTrue(endCurrentCycle);
+  }
 
-        Boolean endCurrentCycle = (Boolean) payload.get("end_current_cycle");
+  @Test
+  public void whenNotEndCurrentCycle_expectNotEndCurrentCycle() throws Exception {
+    Enrollment e = new Enrollment();
+    e.setId(UUID.randomUUID().toString());
+    e.setClinicId(1L);
+    e.setPatientId(2L);
+    e.setStatus(EnrollmentStatus.ACTIVE);
 
-        Assert.assertTrue(endCurrentCycle);
-    }
+    HealthTrackerStatus status = createStatus();
+    status.setEndCurrentCycle(false);
 
-    @Test
-    public void whenNotEndCurrentCycle_expectNotEndCurrentCycle() throws Exception {
-        Enrollment e = new Enrollment();
-        e.setId(UUID.randomUUID().toString());
-        e.setClinicId(1L);
-        e.setPatientId(2L);
-        e.setStatus(EnrollmentStatus.ACTIVE);
+    ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
+    doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
 
-        HealthTrackerStatus status = createStatus();
-        status.setEndCurrentCycle(false);
+    patientRecordService.publishProData(e, status, null);
 
-        ArgumentCaptor<String> valueCapture = ArgumentCaptor.forClass(String.class);
-        doNothing().when(rabbitTemplate).convertAndSend(Mockito.any(), valueCapture.capture());
+    Map<String, Object> payload = extractPayload(valueCapture);
 
-        patientRecordService.publishProData(e, status, null);
+    Boolean endCurrentCycle = (Boolean) payload.get("end_current_cycle");
 
-        Map<String, Object> payload = extractPayload(valueCapture);
+    Assert.assertFalse(endCurrentCycle);
+  }
 
-        Boolean endCurrentCycle = (Boolean) payload.get("end_current_cycle");
+  private HealthTrackerStatus createStatus() {
+    PatientInfo patientInfo = new PatientInfo();
 
-        Assert.assertFalse(endCurrentCycle);
-    }
+    HealthTrackerStatus status = new HealthTrackerStatus();
+    status.setPatientInfo(patientInfo);
 
-    private HealthTrackerStatus createStatus() {
-        PatientInfo patientInfo = new PatientInfo();
+    List<SymptomDetails> symptomDetails = new ArrayList<>();
+    symptomDetails.add(new SymptomDetails());
+    status.setSymptomDetails(symptomDetails);
 
-        HealthTrackerStatus status = new HealthTrackerStatus();
-        status.setPatientInfo(patientInfo);
+    return status;
+  }
 
-        List<SymptomDetails> symptomDetails = new ArrayList<>();
-        symptomDetails.add(new SymptomDetails());
-        status.setSymptomDetails(symptomDetails);
-
-        return status;
-    }
-
-    private Map<String, Object> extractPayload(ArgumentCaptor<String> valueCapture) throws JsonProcessingException {
-        String payloadJson = valueCapture.getValue();
-        ObjectMapper om = new ObjectMapper();
-        return om.readerFor(Map.class).readValue(payloadJson);
-    }
+  private Map<String, Object> extractPayload(ArgumentCaptor<String> valueCapture)
+      throws JsonProcessingException {
+    String payloadJson = valueCapture.getValue();
+    ObjectMapper om = new ObjectMapper();
+    return om.readerFor(Map.class).readValue(payloadJson);
+  }
 }

@@ -73,7 +73,8 @@ public class EnrollmentAPIController implements EnrollmentAPI {
 
     if (!q.isValid()) {
       throw new MissingParametersException(
-          "not a valid query. One of patientId, clinicId, locationId, status or date range must be specified");
+          "not a valid query. One of patientId, clinicId, locationId, status or date range must be"
+              + " specified");
     }
 
     return enrollmentService.getEnrollments(q);
@@ -98,33 +99,32 @@ public class EnrollmentAPIController implements EnrollmentAPI {
 
   @Override
   public Enrollment saveEnrollment(@Valid Enrollment enrollment, BindingResult result) {
-    logger.debug("EnrollmentAPIController::createEnrollment");
-
+    logger.debug("EnrollmentAPIController::saveEnrollment");
     ValidatorUtils.raiseValidationError(result);
 
-    if (enrollment.getTxStartDate() == null && enrollment.getReminderStartDate() == null) {
-      throw new BadDataException("either treatment start date or reminder start date must be set");
-    }
     if (enrollment.getCycles() != null && enrollment.getCycles() != 0) {
       // If enrollment has a limited duration, make sure the end date is in not in the past
       enrollment.validateDates(); // make sure schedule start and end date are set
-      LocalDate endDate = enrollment.getSchedulesLastDate(); // Get the end dat
-      if (endDate != null) {
-        if (endDate.isBefore(LocalDate.now())) {
-          throw new BadDataException("treatment end date must not be in the past");
-        }
-      } else {
-        // There must be an end date if the enrollment is finite. TODO. Reject the enrollment?
-        logger.error("No end date in finite schedule {}", enrollment);
+      LocalDate endDate = enrollment.getSchedulesLastDate();
+      if (endDate != null && endDate.isBefore(LocalDate.now())) {
+        throw new BadDataException("treatment end date must not be in the past");
       }
     }
 
-    enrollment.setId(null);
-
-    if (identity != null && identity.isSet()) {
+    if (enrollment.getId() == null && identity != null && identity.isSet()) {
       enrollment.setPatientId(identity.getPatientId());
       enrollment.setLocationId(identity.getLocationId());
       enrollment.setClinicId(identity.getClinicId());
+    }
+
+    if (enrollment.getId() != null) {
+      // mongo save will try to insert instead of update if version is null,
+      // which causes a duplicate key exception
+      if (enrollment.getVersion() == null) {
+        throw new BadDataException("Id and version must both be specified for update");
+      }
+
+      return enrollmentService.updateEnrollment(enrollment);
     }
 
     return enrollmentService.createEnrollment(enrollment);
@@ -141,13 +141,17 @@ public class EnrollmentAPIController implements EnrollmentAPI {
     this.enrollmentService.resendConsentRequest(id);
   }
 
+  // Deprecated - use saveEnrollment instead.
   @Override
   public Enrollment updateEnrollment(
       String id, @Valid Enrollment enrollment, BindingResult result) {
     logger.debug("EnrollmentAPIController::updateEnrollment");
+    ValidatorUtils.raiseValidationError(result);
+
     if (!id.equalsIgnoreCase(enrollment.getId())) {
       throw new InvalidParameterException("id's don't match");
     }
+
     if (enrollment.getCycles() != null && enrollment.getCycles() != 0) {
       // If enrollment has a limited duration, make sure the end date is in not in the past
       LocalDate endDate = enrollment.getSchedulesLastDate(); // Get the end date
@@ -157,7 +161,7 @@ public class EnrollmentAPIController implements EnrollmentAPI {
         }
       }
     }
-    ValidatorUtils.raiseValidationError(result);
+
     return enrollmentService.updateEnrollment(enrollment);
   }
 

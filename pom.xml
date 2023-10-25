@@ -16,7 +16,7 @@
 	<properties>
 		<auth0-spring-security-api.version>1.5.1</auth0-spring-security-api.version>
 		<aws-java-sdk.version>1.11.943</aws-java-sdk.version>
-		<commons-lang3.version>3.9</commons-lang3.version>
+		<commons-lang3.version>3.13.0</commons-lang3.version>
 		<dd-trace.version>0.100.0</dd-trace.version>
 		<disruptor.version>3.4.4</disruptor.version>
 		<drools.version>7.72.0.Final</drools.version>
@@ -29,13 +29,13 @@
 		<maven-surefire-plugin.version>3.0.0-M5</maven-surefire-plugin.version>
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
-		<nc-commons.version>1.0.5-SNAPSHOT</nc-commons.version>
-		<notification-client.version>2.5.2-SNAPSHOT</notification-client.version>
+		<nc-commons.version>1.0.6-SNAPSHOT</nc-commons.version>
+		<notification-client.version>2.9.0-SNAPSHOT</notification-client.version>
 		<plexus-utils.version>3.0.24</plexus-utils.version>
 		<scheduler-client.version>0.2.0-SNAPSHOT</scheduler-client.version>
 		<spring-boot-maven-plugin.version>2.7.1</spring-boot-maven-plugin.version>
 		<spring-data-mongodb.version>3.4.1</spring-data-mongodb.version>
-		<swagger-maven-plugin-version>3.1.8</swagger-maven-plugin-version>
+		<springdoc.version>1.7.0</springdoc.version>
 	</properties>
 
 	<distributionManagement>
@@ -178,6 +178,28 @@
 			<artifactId>aws-java-sdk-sts</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>sts</artifactId>
+			<version>2.20.145</version>
+			<exclusions>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>netty-nio-client</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>apache-client</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-ui</artifactId>
+			<version>${springdoc.version}</version>
+		</dependency>
+
 		<!-- drools -->
 		<dependency>
 			<groupId>org.kie</groupId>
@@ -246,7 +268,17 @@
 			<artifactId>log4j-layout-template-json</artifactId>
 			<version>${log4j2.version}</version>
 		</dependency>
-	</dependencies>
+        <dependency>
+            <groupId>io.opentracing</groupId>
+            <artifactId>opentracing-api</artifactId>
+            <version>0.33.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.opentracing</groupId>
+            <artifactId>opentracing-util</artifactId>
+            <version>0.33.0</version>
+        </dependency>
+    </dependencies>
 
 	<build>
 		<plugins>

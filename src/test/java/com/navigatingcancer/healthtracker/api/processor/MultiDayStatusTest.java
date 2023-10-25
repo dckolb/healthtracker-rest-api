@@ -4,7 +4,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
@@ -17,8 +19,6 @@ import com.navigatingcancer.healthtracker.api.processor.model.HealthTrackerStatu
 import com.navigatingcancer.healthtracker.api.processor.model.TriagePayload;
 import com.navigatingcancer.json.utils.JsonUtils;
 import com.navigatingcancer.notification.client.service.NotificationServiceClient;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +52,7 @@ public class MultiDayStatusTest {
 
   @Autowired private HealthTrackerStatusRepository healthTrackerStatusRepository;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private NotificationServiceClient notificationServiceClient;
 
@@ -68,7 +68,8 @@ public class MultiDayStatusTest {
     PatientInfo patientInfo = new PatientInfo();
     patientInfo.setHighRisk(true);
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(patientInfo));
@@ -126,7 +127,8 @@ public class MultiDayStatusTest {
             HealthTrackerStatusServiceTest.createSurvey(
                 CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD));
     HealthTrackerStatusCommand command =
-        new HealthTrackerStatusCommand(enrollment.getId(), new SurveyPayload());
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), new SurveyPayload(), List.of(checkIn2.getId()));
     healthTrackerStatusService.accept(command);
 
     HealthTrackerStatus status = healthTrackerStatusService.getOrCreateNewStatus(enrollment);
@@ -168,7 +170,8 @@ public class MultiDayStatusTest {
     doNothing().when(rabbitTemplate).convertAndSend(any(String.class), valueCapture.capture());
 
     HealthTrackerStatusCommand command =
-        new HealthTrackerStatusCommand(enrollment.getId(), payload);
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), payload, List.of(checkIn1.getId(), checkIn2.getId()));
     healthTrackerStatusService.accept(command);
 
     HealthTrackerStatus status = healthTrackerStatusService.getOrCreateNewStatus(enrollment);
@@ -214,7 +217,8 @@ public class MultiDayStatusTest {
     doNothing().when(rabbitTemplate).convertAndSend(any(String.class), valueCapture.capture());
 
     HealthTrackerStatusCommand command =
-        new HealthTrackerStatusCommand(enrollment.getId(), payload);
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), payload, List.of(checkIn1.getId(), checkIn2.getId()));
     healthTrackerStatusService.accept(command);
 
     HealthTrackerStatus status = healthTrackerStatusService.getOrCreateNewStatus(enrollment);
@@ -236,18 +240,22 @@ public class MultiDayStatusTest {
     var enrollment = createEnrollment(id, id, id, testStartDate.plusDays(daysOffset++));
 
     // Day 0 - missed
-    addMissedCheckInToEnrollment(enrollment, testStartDate.plusDays(daysOffset++));
+    CheckIn checkIn1 =
+        addMissedCheckInToEnrollment(enrollment, testStartDate.plusDays(daysOffset++));
 
     // Day 1 - symptoms & triage
-    addCheckInToEnrollment(
-        enrollment,
-        testStartDate.plusDays(daysOffset++),
-        HealthTrackerStatusServiceTest.createSurvey(
-            CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD,
-            CheckInService.PAIN_FEVER_SEVERITY, CheckInService.PAIN_SEVERE));
+    CheckIn checkIn2 =
+        addCheckInToEnrollment(
+            enrollment,
+            testStartDate.plusDays(daysOffset++),
+            HealthTrackerStatusServiceTest.createSurvey(
+                CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD,
+                CheckInService.PAIN_FEVER_SEVERITY, CheckInService.PAIN_SEVERE));
 
     // Process status
-    var command = new HealthTrackerStatusCommand(enrollment.getId(), new SurveyPayload());
+    var command =
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), new SurveyPayload(), List.of(checkIn2.getId()));
     healthTrackerStatusService.accept(
         command); // user checkins status is processed via SQS message passing
     // There are symptoms, should get a new triage ticket
@@ -256,11 +264,15 @@ public class MultiDayStatusTest {
         "status should be triage", HealthTrackerStatusCategory.TRIAGE, status.getCategory());
 
     // Day 2 - missed
-    addMissedCheckInToEnrollment(enrollment, testStartDate.plusDays(daysOffset++));
+    CheckIn checkIn3 =
+        addMissedCheckInToEnrollment(enrollment, testStartDate.plusDays(daysOffset++));
 
     // Process status
     healthTrackerStatusService.processStatus(
-        enrollment.getId(), status, null); // status check is processed with a function call
+        enrollment.getId(),
+        null,
+        List.of(checkIn3.getId())); // status check is processed with a function call
+
     // Last day checkin was missed, no more symptoms reported, should not get a new triage ticket
     status = healthTrackerStatusRepository.getById(enrollment.getId());
     Assert.assertNotEquals(
@@ -275,15 +287,18 @@ public class MultiDayStatusTest {
     var enrollment = createEnrollment(id, id, id, testStartDate.plusDays(daysOffset++));
 
     // Day 1 - symptoms & triage
-    addCheckInToEnrollment(
-        enrollment,
-        testStartDate.plusDays(daysOffset++),
-        HealthTrackerStatusServiceTest.createSurvey(
-            CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD,
-            CheckInService.PAIN_FEVER_SEVERITY, CheckInService.PAIN_SEVERE));
+    CheckIn checkIn =
+        addCheckInToEnrollment(
+            enrollment,
+            testStartDate.plusDays(daysOffset++),
+            HealthTrackerStatusServiceTest.createSurvey(
+                CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD,
+                CheckInService.PAIN_FEVER_SEVERITY, CheckInService.PAIN_SEVERE));
 
     // Process status
-    var command = new HealthTrackerStatusCommand(enrollment.getId(), new SurveyPayload());
+    var command =
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), new SurveyPayload(), List.of(checkIn.getId()));
     healthTrackerStatusService.accept(
         command); // user checkins status is processed via SQS message passing
     // There are symptoms, should get a new triage ticket
@@ -297,7 +312,7 @@ public class MultiDayStatusTest {
 
     // Process status
     healthTrackerStatusService.processStatus(
-        enrollment.getId(), status, null); // status check is processed with a function call
+        enrollment.getId(), null, List.of()); // status check is processed with a function call
     // Is is only status check, should not raise triage ticket
     status = healthTrackerStatusRepository.getById(enrollment.getId());
     Assert.assertNotEquals(
@@ -316,15 +331,18 @@ public class MultiDayStatusTest {
     var enrollment = createEnrollment(id, id, id, testStartDate.plusDays(daysOffset++));
 
     // Day 1 - symptoms & triage
-    addCheckInToEnrollment(
-        enrollment,
-        testStartDate.plusDays(daysOffset++),
-        HealthTrackerStatusServiceTest.createSurvey(
-            CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD,
-            CheckInService.PAIN_FEVER_SEVERITY, CheckInService.PAIN_SEVERE));
+    CheckIn checkIn =
+        addCheckInToEnrollment(
+            enrollment,
+            testStartDate.plusDays(daysOffset++),
+            HealthTrackerStatusServiceTest.createSurvey(
+                CheckInService.SYMPTOM_FEVER_SEVERITY, CheckInService.MILD,
+                CheckInService.PAIN_FEVER_SEVERITY, CheckInService.PAIN_SEVERE));
 
     // Process status
-    var command = new HealthTrackerStatusCommand(enrollment.getId(), new SurveyPayload());
+    var command =
+        new HealthTrackerStatusCommand(
+            enrollment.getId(), new SurveyPayload(), List.of(checkIn.getId()));
     healthTrackerStatusService.accept(
         command); // user checkins status is processed via SQS message passing
     // There are symptoms, should get a new triage ticket
@@ -333,8 +351,7 @@ public class MultiDayStatusTest {
         "status should be triage", HealthTrackerStatusCategory.TRIAGE, status.getCategory());
 
     // Process status
-    healthTrackerStatusService.processStatus(
-        enrollment.getId(), status, null); // status check processed with a function call
+    healthTrackerStatusService.processStatus(enrollment.getId(), null, List.of());
     // If triage ticket was not closed status check should not clear it
     status = healthTrackerStatusRepository.getById(enrollment.getId());
     Assert.assertEquals(

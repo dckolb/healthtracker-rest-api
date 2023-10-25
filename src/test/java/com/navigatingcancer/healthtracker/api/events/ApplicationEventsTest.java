@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.navigatingcancer.healthtracker.api.TestConfig;
 import com.navigatingcancer.healthtracker.api.data.auth.Identity;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.CheckIn;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInFrequency;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInSchedule;
@@ -14,6 +15,7 @@ import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerEvent;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
@@ -28,8 +30,6 @@ import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServic
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusServiceTest;
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTrackerStatusCommand;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import com.navigatingcancer.scheduler.client.domain.TriggerEvent;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -75,12 +75,12 @@ public class ApplicationEventsTest {
 
   @Autowired HealthTrackerStatusService healthTrackerStatusService;
 
-  @MockBean PatientInfoClient patientInfoClient;
+  @MockBean PatientInfoServiceClient patientInfoClient;
 
   @Before
   public void setup() throws Exception {
-    PatientInfoClient.FeignClient mockPatientInfo =
-        Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient mockPatientInfo =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     given(patientInfoClient.getApi()).willReturn(mockPatientInfo);
     PatientInfo patientInfo = new PatientInfo();
     patientInfo.setHighRisk(false);
@@ -222,7 +222,8 @@ public class ApplicationEventsTest {
     sip.setId(ci.getId());
     SurveyPayload sp = new SurveyPayload();
     sp.content.setSymptoms(Arrays.asList(sip));
-    HealthTrackerStatusCommand command = new HealthTrackerStatusCommand(enrollment.getId(), sp);
+    HealthTrackerStatusCommand command =
+        new HealthTrackerStatusCommand(enrollment.getId(), sp, List.of(ci.getId()));
     healthTrackerStatusService.accept(command);
 
     // Make sure the logs are written

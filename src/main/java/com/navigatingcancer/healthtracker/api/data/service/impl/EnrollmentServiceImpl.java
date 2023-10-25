@@ -2,19 +2,11 @@ package com.navigatingcancer.healthtracker.api.data.service.impl;
 
 import com.navigatingcancer.healthtracker.api.data.auth.AuthInterceptor;
 import com.navigatingcancer.healthtracker.api.data.auth.Identity;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInSchedule;
-import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
-import com.navigatingcancer.healthtracker.api.data.model.EnrollmentStatus;
-import com.navigatingcancer.healthtracker.api.data.model.EnrollmentStatusLog;
-import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
-import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
-import com.navigatingcancer.healthtracker.api.data.model.TherapyType;
+import com.navigatingcancer.healthtracker.api.data.migrate.CheckInScheduleMigrator;
+import com.navigatingcancer.healthtracker.api.data.model.*;
 import com.navigatingcancer.healthtracker.api.data.model.surveyConfig.ClinicConfig;
 import com.navigatingcancer.healthtracker.api.data.model.surveyConfig.ProgramConfig;
-import com.navigatingcancer.healthtracker.api.data.repo.CustomCheckInRepository;
-import com.navigatingcancer.healthtracker.api.data.repo.CustomEnrollmentRepositoryImpl;
-import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepository;
-import com.navigatingcancer.healthtracker.api.data.repo.HealthTrackerStatusRepository;
+import com.navigatingcancer.healthtracker.api.data.repo.*;
 import com.navigatingcancer.healthtracker.api.data.service.ConsentService;
 import com.navigatingcancer.healthtracker.api.data.service.EnrollmentService;
 import com.navigatingcancer.healthtracker.api.data.service.SurveyConfigService;
@@ -28,16 +20,11 @@ import com.navigatingcancer.healthtracker.api.rest.exception.UnknownEnrollmentEx
 import com.navigatingcancer.healthtracker.api.rest.representation.EnrollmentIdentifiers;
 import java.security.InvalidParameterException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -45,8 +32,6 @@ import org.springframework.stereotype.Service;
 public class EnrollmentServiceImpl implements EnrollmentService {
 
   @Autowired private EnrollmentRepository enrollmentRepository;
-
-  @Autowired private CustomEnrollmentRepositoryImpl customEnrollmentRepository;
 
   @Autowired private HealthTrackerStatusRepository statusRepository;
 
@@ -62,7 +47,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
   @Autowired private PatientRecordService patientRecordService;
 
-  @Autowired private CustomCheckInRepository customCheckInRepository;
+  @Autowired private CheckInRepository checkInRepository;
 
   @Autowired private SurveyConfigService surveyConfigService;
 
@@ -72,6 +57,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
   @Autowired private MetersService metersService;
 
+  @Autowired private CheckInScheduleMigrator checkInScheduleMigrator;
+
   private static class InvalidStatusUpdateException extends Exception {
     public InvalidStatusUpdateException(String errorMessage) {
       super(errorMessage);
@@ -80,6 +67,13 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
   @Autowired private Identity identity;
 
+  /**
+   * @deprecated This method is used to set a transient program id on in-memory enrollments Use
+   *     explicitly configured survey instances instead.
+   * @param enrollments
+   * @return
+   */
+  @Deprecated
   @Override
   public List<Enrollment> setProgramIds(List<Enrollment> enrollments) {
     if (enrollments == null || enrollments.isEmpty()) {
@@ -89,27 +83,21 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     // get config and process consent, if necessary
     ClinicConfig clinicConfig =
         this.surveyConfigService.getClinicConfig(enrollments.get(0).getClinicId());
-    Collection<String> programIds = new ArrayList<>();
-    if (clinicConfig != null && clinicConfig.getPrograms() != null) {
-      programIds.addAll(clinicConfig.getPrograms().values());
-    }
 
-    List<ProgramConfig> programConfigs = this.surveyConfigService.getProgramConfigs(programIds);
+    var programConfigs = this.surveyConfigService.getProgramConfigs(clinicConfig);
+
+    var clinicHasProCtcaeProgram =
+        programConfigs.stream()
+            .anyMatch(p -> ProgramType.PRO_CTCAE.getProgramName().equalsIgnoreCase(p.getType()));
 
     for (Enrollment e : enrollments) {
       // check if the clinic is setup for pro-ctcae
-      if (clinicConfig != null && clinicConfig.getPrograms().containsKey("PRO-CTCAE")) {
-        if (e.getTherapyTypes() != null && e.getTherapyTypes().contains(TherapyType.IV)) {
-          e.setProgramId(this.surveyConfigService.getProgramId(programConfigs, "pro-ctcae"));
-          continue;
-        } else {
-          e.setProgramId(this.surveyConfigService.getProgramId(programConfigs, "healthtracker"));
-        }
-        continue;
+      if (clinicHasProCtcaeProgram
+          && e.getTherapyTypes() != null
+          && e.getTherapyTypes().contains(TherapyType.IV)) {
+        e.setProgramId(ProgramConfig.getProgramId(programConfigs, ProgramType.PRO_CTCAE));
       } else {
-        // only other option at the moment is healthtracker
-        e.setProgramId(this.surveyConfigService.getProgramId(programConfigs, "healthtracker"));
-        continue;
+        e.setProgramId(ProgramConfig.getProgramId(programConfigs, ProgramType.HEALTH_TRACKER));
       }
     }
 
@@ -130,10 +118,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
       enrollment.setStatusLogs(new ArrayList<>());
     }
 
-    // get config and process consent, if necessary
-    ProgramConfig programConfig =
-        this.surveyConfigService.getProgramConfig(enrollment.getProgramId());
-
     enrollment
         .getStatusLogs()
         .add(
@@ -146,14 +130,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 identity.getClinicianName()));
 
     // HT-362 - send status AFTER saving to db so id isn't null
-    Enrollment persisted = scheduleFirstTime(enrollment, programConfig);
+    Enrollment savedEnrollment = scheduleFirstTime(enrollment);
 
-    // publish notofication
-    eventsPublisher.publishEnrollmentCreated(enrollment, identity);
+    // publish notification
+    eventsPublisher.publishEnrollmentCreated(savedEnrollment, identity);
 
     try {
       // TODO. Make it event listener action?
-      patientRecordService.publishEnrollmentCreated(persisted, identity);
+      patientRecordService.publishEnrollmentCreated(savedEnrollment, identity);
     } catch (Exception e) {
       log.error("Unable to publish to RabbitMQ : ", e);
       // FIXME better way to handle this error ?
@@ -162,72 +146,39 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     metersService.incrementCounter(
-        persisted.getClinicId(), HealthTrackerCounterMetric.ENROLLMENT_CREATED);
+        savedEnrollment.getClinicId(), HealthTrackerCounterMetric.ENROLLMENT_CREATED);
 
-    return persisted;
+    return savedEnrollment;
   }
 
   @Override
-  public Enrollment updateEnrollment(Enrollment enrollment) {
-    log.debug("EnrollmentService::updateEnrollment");
-    String id = enrollment.getId();
-    Enrollment persisted = enrollmentRepository.findById(id).get();
-    enrollment.setCreatedDate(persisted.getCreatedDate());
-    enrollment.setCreatedBy(persisted.getCreatedBy());
-    enrollment.setUrl(persisted.getUrl());
-    enrollment.setStatusLogs(persisted.getStatusLogs());
-    enrollment.setConsentRequestId(persisted.getConsentRequestId());
-    enrollment.setProgramId(persisted.getProgramId());
-
-    // If the schedule has started then certain fields are immutable
-    if (persisted.getStartDate().isBefore(LocalDate.now())
-        || persisted.getStartDate().isEqual(LocalDate.now())) {
-      // schedule size should match
-      if (persisted.getSchedules() == null
-          || enrollment.getSchedules() == null
-          || (persisted.getSchedules().size() != enrollment.getSchedules().size())) {
-        throw new InvalidParameterException("check in schedule count does not match");
+  public Enrollment updateEnrollment(Enrollment newEnrollment) {
+    String id = newEnrollment.getId();
+    Enrollment current = enrollmentRepository.findById(id).get();
+    retainImmutableFields(current, newEnrollment);
+    if (!current.getSchedules().isEmpty()) {
+      // If the schedule has started then certain fields are immutable
+      if (current.hasStarted()) {
+        validateScheduleUpdates(current, newEnrollment);
       }
 
-      for (CheckInSchedule p : persisted.getSchedules()) {
-
-        CheckInSchedule schedule = null;
-
-        for (CheckInSchedule e : enrollment.getSchedules()) {
-          if (e.matchesTypeAndMedication(p)) {
-            if (schedule != null) {
-              log.debug(" found multiple matching schedules for resultType %s med %s");
-              throw new InvalidParameterException("check in schedules do not match");
-            }
-            schedule = e;
-          }
-        }
-
-        if (schedule == null) {
-          throw new InvalidParameterException(
-              String.format(
-                  "cannot remove enrollment resultType %s for medication %s",
-                  p.getCheckInType().toString(), p.getMedication()));
-        }
-      }
+      retainScheduleIds(current, newEnrollment);
+      this.enrollmentRepository.save(newEnrollment);
+      updateSchedule(newEnrollment);
+    } else if (!newEnrollment.getSchedules().isEmpty()) {
+      scheduleFirstTime(newEnrollment);
+    } else {
+      this.enrollmentRepository.save(newEnrollment);
     }
 
-    List<String> diffList = persisted.diffDescr(enrollment);
+    List<String> diffList = current.diffDescr(newEnrollment);
     if (diffList.size() > 0) {
-      eventsPublisher.publishEnrollmentUpdated(enrollment, diffList, identity);
+      eventsPublisher.publishEnrollmentUpdated(newEnrollment, diffList, identity);
     }
 
-    updateSchedule(enrollment);
-    try {
-      this.enrollmentRepository.save(enrollment);
-    } catch (OptimisticLockingFailureException ex) {
-      log.error("Failed to update. Concurrent update of the enrollment " + id, ex);
-      throw new RuntimeException(
-          "Changes to the underlying enrollment data detected. Has it been modified meanwhile? Please refresh enrollment and try again.");
-    }
-    patientRecordService.publishEnrollmentUpdated(enrollment, identity);
+    patientRecordService.publishEnrollmentUpdated(newEnrollment, identity);
 
-    return enrollment;
+    return newEnrollment;
   }
 
   @Override
@@ -328,8 +279,13 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 identity.getClinicianId(),
                 identity.getClinicianName()));
     enrollmentRepository.save(enrollment);
-    notificationService.sendNotification(
-        id, enrollment, event, NotificationService.Category.STATUS_CHANGED.toString());
+
+    if (!enrollment.isManualCollect()) {
+      notificationService.sendNotification(
+          id, enrollment, event, NotificationService.Category.STATUS_CHANGED);
+    } else {
+      log.info("Not sending notification for clinic collect enrollment {} {}", id, enrollment);
+    }
 
     patientRecordService.publishEnrollmentStatusUpdated(enrollment, event, reason, note, identity);
 
@@ -340,7 +296,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     if (status == EnrollmentStatus.STOPPED) {
       // If there are pending checkins - stop them
-      customCheckInRepository.stopCheckins(id);
+      checkInRepository.stopCheckins(id);
       // Report the number
       metersService.incrementCounter(
           enrollment.getClinicId(), HealthTrackerCounterMetric.ENROLLMENT_STOPPED);
@@ -363,7 +319,48 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     this.consentService.resendRequest(enrollment.getConsentRequestId());
   }
 
-  private Enrollment scheduleFirstTime(Enrollment enrollment, ProgramConfig programConfig) {
+  @Override
+  public Enrollment appendEventsLog(
+      String id,
+      EnrollmentStatus status,
+      String reason,
+      String note,
+      String clinicianId,
+      String clinicianName) {
+    EnrollmentStatusLog logEntry =
+        new EnrollmentStatusLog(status, reason, note, Instant.now(), clinicianId, clinicianName);
+    return enrollmentRepository.appendStatusLog(id, logEntry);
+  }
+
+  @Override
+  public Enrollment completeEnrollment(Enrollment enrollment) {
+    String eid = enrollment.getId();
+    enrollmentRepository.setStatus(eid, EnrollmentStatus.COMPLETED);
+    healthTrackerStatusRepository.updateCategory(eid, HealthTrackerStatusCategory.COMPLETED);
+    metersService.incrementCounter(
+        enrollment.getClinicId(), HealthTrackerCounterMetric.ENROLLMENT_COMPLETED);
+    return appendEventsLog(
+        eid,
+        EnrollmentStatus.COMPLETED,
+        "Enrollment completed",
+        null,
+        null,
+        AuthInterceptor.HEALTH_TRACKER_NAME);
+  }
+
+  @Override
+  public void rebuildSchedule(String id) {
+    Optional<Enrollment> e = enrollmentRepository.findById(id);
+    if (e.isPresent()) {
+      schedulingService.schedule(e.get(), false);
+    } else {
+      throw new UnknownEnrollmentException("Unknown enrollment ID " + id);
+    }
+  }
+
+  private Enrollment scheduleFirstTime(Enrollment enrollment) {
+    ProgramConfig programConfig =
+        this.surveyConfigService.getProgramConfig(enrollment.getProgramId());
     // retain reference in case of rollback need
     HealthTrackerStatus status = null;
     try {
@@ -381,19 +378,32 @@ public class EnrollmentServiceImpl implements EnrollmentService {
       }
 
       enrollment = enrollmentRepository.save(enrollment);
-      log.debug("enrollment is {}", enrollment);
+
+      for (var schedule : enrollment.getSchedules()) {
+        checkInScheduleMigrator.migrateIfNecessary(enrollment, schedule);
+      }
+      enrollment = enrollmentRepository.findById(enrollment.getId()).orElseThrow();
 
       // persist status prior to scheduling service call to prevent race condition
       status = healthTrackerStatusService.getOrCreateNewStatus(enrollment);
 
-      schedulingService.schedule(enrollment, true);
+      if (!enrollment.getSchedules().isEmpty()) {
+        schedulingService.schedule(enrollment, true);
 
-      // Send first time enrollment notification
-      notificationService.sendNotification(
-          enrollment.getId(),
-          enrollment,
-          NotificationService.Event.ENROLLED,
-          NotificationService.Category.FIRST_ENROLLMENT.toString());
+        if (!enrollment.isManualCollect()) {
+          // Send first time enrollment notification
+          notificationService.sendNotification(
+              enrollment.getId(),
+              enrollment,
+              NotificationService.Event.ENROLLED,
+              NotificationService.Category.FIRST_ENROLLMENT);
+        } else {
+          log.info(
+              "Not sending notification for clinic collect enrollment {} {}",
+              enrollment.getId(),
+              enrollment);
+        }
+      }
 
     } catch (Exception e) {
       log.error("Unable to create enrollment", e);
@@ -421,42 +431,81 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     schedulingService.schedule(result, false);
   }
 
-  @Override
-  public Enrollment appendEventsLog(
-      String id,
-      EnrollmentStatus status,
-      String reason,
-      String note,
-      String clinicianId,
-      String clinicianName) {
-    EnrollmentStatusLog logEntry =
-        new EnrollmentStatusLog(status, reason, note, Instant.now(), clinicianId, clinicianName);
-    return customEnrollmentRepository.appendStatusLog(id, logEntry);
-  }
-
-  @Override
-  public Enrollment completeEnrollment(Enrollment enrollment) {
-    String eid = enrollment.getId();
-    enrollmentRepository.setStatus(eid, EnrollmentStatus.COMPLETED);
-    healthTrackerStatusRepository.updateCategory(eid, HealthTrackerStatusCategory.COMPLETED);
-    metersService.incrementCounter(
-        enrollment.getClinicId(), HealthTrackerCounterMetric.ENROLLMENT_COMPLETED);
-    return appendEventsLog(
-        eid,
-        EnrollmentStatus.COMPLETED,
-        "Enrollment completed",
-        null,
-        null,
-        AuthInterceptor.HEALTH_TRACKER_NAME);
-  }
-
-  @Override
-  public void rebuildSchedule(String id) {
-    Optional<Enrollment> e = enrollmentRepository.findById(id);
-    if (e.isPresent()) {
-      schedulingService.schedule(e.get(), false);
-    } else {
-      throw new UnknownEnrollmentException("Unknown enrollment ID " + id);
+  private void validateScheduleUpdates(Enrollment current, Enrollment newEnrollment) {
+    // Schedule size should match
+    if (current.getSchedules() == null
+        || newEnrollment.getSchedules() == null
+        || (current.getSchedules().size() != newEnrollment.getSchedules().size())) {
+      throw new InvalidParameterException("check in schedule count does not match");
     }
+
+    // Ensure types and medication pair are unique
+    current
+        .getSchedules()
+        .forEach(
+            ps -> {
+              long matchingSchedules =
+                  newEnrollment.getSchedules().stream()
+                      .filter(es -> es.matchesTypeAndMedication(ps))
+                      .count();
+
+              if (matchingSchedules > 1L) {
+                log.debug(" found multiple matching schedules for resultType %s med %s");
+                throw new InvalidParameterException("check in schedules do not match");
+              }
+
+              // disallows updating a schedule's medication once it has started
+              // FIXME: there is no medication being set on schedules.
+              if (matchingSchedules == 0L) {
+                throw new InvalidParameterException(
+                    String.format(
+                        "cannot remove enrollment resultType %s for medication %s",
+                        ps.getCheckInType().toString(), ps.getMedication()));
+              }
+            });
+  }
+
+  private void retainScheduleIds(Enrollment persisted, Enrollment enrollment) {
+    enrollment
+        .getSchedules()
+        .forEach(
+            es -> {
+              // find persisted schedule matching incoming schedule
+              var matchingPersistedSchedules =
+                  persisted.getSchedules().stream()
+                      .filter(
+                          ps -> {
+                            if (es.getId() != null) {
+                              return Objects.equals(ps.getId(), es.getId());
+                            }
+
+                            // TODO: don't use check in type here, use schedule id only when
+                            // expected in API
+                            return es.getCheckInType() == ps.getCheckInType();
+                          })
+                      .toList();
+
+              if (matchingPersistedSchedules.size() > 1) {
+                throw new InvalidParameterException("check in schedules do not match");
+              }
+
+              if (matchingPersistedSchedules.isEmpty()) {
+                checkInScheduleMigrator.setScheduleDefaults(enrollment, es);
+                return;
+              }
+
+              var persistedSchedule = matchingPersistedSchedules.get(0);
+              es.setId(persistedSchedule.getId());
+              checkInScheduleMigrator.updateIfNecessary(enrollment, persistedSchedule, es);
+            });
+  }
+
+  private void retainImmutableFields(Enrollment persisted, Enrollment enrollment) {
+    enrollment.setCreatedDate(persisted.getCreatedDate());
+    enrollment.setCreatedBy(persisted.getCreatedBy());
+    enrollment.setUrl(persisted.getUrl());
+    enrollment.setStatusLogs(persisted.getStatusLogs());
+    enrollment.setConsentRequestId(persisted.getConsentRequestId());
+    enrollment.setProgramId(persisted.getProgramId());
   }
 }

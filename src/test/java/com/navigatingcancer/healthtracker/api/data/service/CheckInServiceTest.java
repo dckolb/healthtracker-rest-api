@@ -1,7 +1,5 @@
 package com.navigatingcancer.healthtracker.api.data.service;
 
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,27 +7,24 @@ import static org.mockito.BDDMockito.given;
 
 import com.navigatingcancer.date.utils.DateTimeUtils;
 import com.navigatingcancer.healthtracker.api.TestConfig;
-import com.navigatingcancer.healthtracker.api.data.model.CheckIn;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInData;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInFrequency;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInSchedule;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInStatus;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInType;
-import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
+import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
+import com.navigatingcancer.healthtracker.api.data.model.survey.SurveySubmission;
 import com.navigatingcancer.healthtracker.api.data.model.surveyConfig.ClinicConfig;
 import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepositoryTest;
 import com.navigatingcancer.healthtracker.api.data.repo.HealthTrackerStatusRepository;
+import com.navigatingcancer.healthtracker.api.data.repo.PracticeCheckInRepository;
 import com.navigatingcancer.healthtracker.api.data.service.impl.NotificationService;
 import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServiceImpl;
 import com.navigatingcancer.healthtracker.api.data.service.impl.SurveyConfigServiceImpl;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
 import com.navigatingcancer.healthtracker.api.rest.QueryParameters.EnrollmentQuery;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.rest.representation.CheckInResponse;
 import com.navigatingcancer.scheduler.client.service.SchedulerServiceClient;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -61,13 +56,15 @@ public class CheckInServiceTest {
 
   @Autowired private CheckInRepository checkInRepository;
 
+  @Autowired private PracticeCheckInRepository practiceCheckInRepository;
+
   @MockBean private SchedulerServiceClient schedulerServiceClient;
 
   @MockBean private HealthTrackerStatusService healthTrackerStatusService;
 
   @MockBean private HealthTrackerStatusRepository healthTrackerStatusRepository;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private SchedulingServiceImpl schedulingService;
   @MockBean private SurveyConfigServiceImpl surveyConfigService;
@@ -85,14 +82,11 @@ public class CheckInServiceTest {
         Mockito.mock(SchedulerServiceClient.FeignClient.class);
     given(schedulerServiceClient.getApi()).willReturn(mock);
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(new PatientInfo()));
-
-    Mockito.when(schedulingService.getNextCheckInDate(any())).thenCallRealMethod();
-    Mockito.when(schedulingService.getNextCheckInDate(any(), any())).thenCallRealMethod();
-    Mockito.when(schedulingService.getLastCheckInDate(any(), any())).thenCallRealMethod();
 
     ReflectionTestUtils.setField(
         schedulingService, "healthTrackerStatusRepository", healthTrackerStatusRepository);
@@ -718,6 +712,246 @@ public class CheckInServiceTest {
     assertNotEquals(updated.getId(), "please dont set me!");
   }
 
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_returnsOnlyCheckInsForAGivenEnrollment() {
+    Long id1 = 15L;
+    Long id2 = 16L;
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setStartDate(LocalDate.now().minusDays(14));
+    schedule.setEndDate(LocalDate.now().plusDays(14));
+    schedule.setCheckInType(CheckInType.ORAL);
+
+    Enrollment en1 =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id1, id1, id1, schedule));
+    Enrollment en2 =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id2, id2, id2, schedule));
+
+    CheckIn ci1 =
+        createCheckIn(en1, CheckInStatus.PENDING, CheckInType.ORAL, LocalDate.now(), null);
+    CheckIn ci2 =
+        createCheckIn(en2, CheckInStatus.PENDING, CheckInType.ORAL, LocalDate.now(), null);
+
+    List<CheckInResponse> checkInResponses =
+        service.getCheckInsByEnrollmentAndStatus(en1.getId(), null, false);
+
+    Assert.assertEquals(checkInResponses.size(), 1);
+    Assert.assertEquals(checkInResponses.get(0).getClinicId(), en1.getClinicId());
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_canFilterByCheckInStatus() {
+    Long id = 15L;
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setStartDate(LocalDate.now().minusDays(14));
+    schedule.setEndDate(LocalDate.now().plusDays(14));
+    schedule.setCheckInType(CheckInType.ORAL);
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id, id, id, schedule));
+
+    CheckIn ci1 = createCheckIn(en, CheckInStatus.PENDING, CheckInType.ORAL, LocalDate.now(), null);
+    CheckIn ci2 = createCheckIn(en, CheckInStatus.MISSED, CheckInType.ORAL, LocalDate.now(), null);
+
+    List<CheckInResponse> checkInResponsePending =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false);
+    List<CheckInResponse> checkInResponseAll =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), null, false);
+
+    Assert.assertEquals(checkInResponsePending.size(), 1);
+    Assert.assertEquals(checkInResponsePending.get(0).getStatus(), CheckInStatus.PENDING);
+    Assert.assertEquals(checkInResponseAll.size(), 2);
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_createsCheckInSchedules() {
+    Long id = 15L;
+    CheckInSchedule oralSchedule = new CheckInSchedule();
+    oralSchedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    oralSchedule.setStartDate(LocalDate.now().minusDays(14));
+    oralSchedule.setEndDate(LocalDate.now().plusDays(14));
+    oralSchedule.setCheckInType(CheckInType.ORAL);
+
+    CheckInSchedule symptomSchedule = new CheckInSchedule();
+    symptomSchedule.setCheckInFrequency(CheckInFrequency.WEEKDAY);
+    symptomSchedule.setStartDate(LocalDate.now().minusDays(10));
+    symptomSchedule.setEndDate(LocalDate.now().plusDays(10));
+    symptomSchedule.setCheckInType(CheckInType.SYMPTOM);
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(
+                id, id, id, oralSchedule, symptomSchedule));
+
+    String oralSurveyId = "oral1234";
+    String symptomSurveyId = "symptom1234";
+    CheckIn ci1 =
+        createCheckInNoSave(en, CheckInStatus.PENDING, CheckInType.ORAL, LocalDate.now(), null);
+    ci1.setSurveyInstanceId(oralSurveyId);
+    CheckIn ci2 =
+        createCheckInNoSave(en, CheckInStatus.PENDING, CheckInType.SYMPTOM, LocalDate.now(), null);
+    ci2.setSurveyInstanceId(symptomSurveyId);
+    checkInRepository.save(ci1);
+    checkInRepository.save(ci2);
+
+    List<CheckInResponse> checkInResponses =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false);
+    CheckInResponse oralCheckInResponse =
+        checkInResponses.stream()
+            .filter(c -> c.getSurveyInstanceId().equalsIgnoreCase(oralSurveyId))
+            .findAny()
+            .orElse(null);
+    CheckInResponse symptomCheckInResponse =
+        checkInResponses.stream()
+            .filter(c -> c.getSurveyInstanceId().equalsIgnoreCase(symptomSurveyId))
+            .findAny()
+            .orElse(null);
+
+    Assert.assertNotNull("oral checkIn is null", oralCheckInResponse);
+    Assert.assertNotNull("symptom checkIn is null", symptomCheckInResponse);
+
+    CheckInSchedule oralResponseSchedule = oralCheckInResponse.getCheckInSchedule();
+    CheckInSchedule symptomResponseSchedule = symptomCheckInResponse.getCheckInSchedule();
+    Assert.assertEquals(
+        oralResponseSchedule.getCheckInFrequency(), oralSchedule.getCheckInFrequency());
+    Assert.assertEquals(oralResponseSchedule.getStartDate(), oralSchedule.getStartDate());
+    Assert.assertEquals(oralResponseSchedule.getEndDate(), oralSchedule.getEndDate());
+    Assert.assertEquals(
+        symptomResponseSchedule.getCheckInFrequency(), symptomSchedule.getCheckInFrequency());
+    Assert.assertEquals(symptomResponseSchedule.getStartDate(), symptomSchedule.getStartDate());
+    Assert.assertEquals(symptomResponseSchedule.getEndDate(), symptomSchedule.getEndDate());
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_setsIsGuidedForFirstCheckIn() {
+    Long id = 15L;
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setStartDate(LocalDate.now().minusDays(14));
+    schedule.setEndDate(LocalDate.now().plusDays(14));
+    schedule.setCheckInType(CheckInType.ORAL);
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id, id, id, schedule));
+
+    CheckIn ci1 =
+        createCheckIn(
+            en,
+            CheckInStatus.PENDING,
+            CheckInType.ORAL,
+            LocalDate.now(),
+            null,
+            ReasonForCheckInCreation.SCHEDULED);
+    CheckInResponse checkInResponse =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false).get(0);
+    Assert.assertEquals(true, checkInResponse.getCheckInParameters().get("isGuided"));
+    Assert.assertNotEquals(checkInResponse.getId(), SurveySubmission.PRACTICE_CHECKIN_ID);
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_doesNotSetIsGuidedForFirstCheckInForUnscheduled() {
+    Long id = 15L;
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id, id, id));
+
+    CheckIn ci1 =
+        createCheckIn(
+            en,
+            CheckInStatus.PENDING,
+            null,
+            LocalDate.now(),
+            null,
+            ReasonForCheckInCreation.CARE_TEAM_REQUESTED);
+    CheckInResponse checkInResponse =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false).get(0);
+    Assert.assertNull(checkInResponse.getCheckInParameters().get("isGuided"));
+    Assert.assertNotEquals(checkInResponse.getId(), SurveySubmission.PRACTICE_CHECKIN_ID);
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_doesNotSetsIsGuidedIfCompletedCheckInExists() {
+    Long id = 15L;
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setStartDate(LocalDate.now().minusDays(14));
+    schedule.setEndDate(LocalDate.now().plusDays(14));
+    schedule.setCheckInType(CheckInType.ORAL);
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id, id, id, schedule));
+
+    CheckIn ci1 = createCheckIn(en, CheckInStatus.PENDING, CheckInType.ORAL, LocalDate.now(), null);
+    CheckIn ci2 =
+        createCheckIn(en, CheckInStatus.COMPLETED, CheckInType.ORAL, LocalDate.now(), null);
+    CheckInResponse checkInResponse =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false).get(0);
+    Assert.assertEquals(checkInResponse.getCheckInParameters().get("isGuided"), null);
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_createsPracticeCheckins() {
+    Long id = 15L;
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setStartDate(LocalDate.now().minusDays(14));
+    schedule.setEndDate(LocalDate.now().plusDays(14));
+    schedule.setCheckInType(CheckInType.ORAL);
+    schedule.setStatus(CheckInScheduleStatus.ACTIVE);
+
+    Long id2 = 16L;
+    CheckInSchedule schedule2 = new CheckInSchedule();
+    schedule2.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule2.setStartDate(LocalDate.now().minusDays(14));
+    schedule2.setEndDate(LocalDate.now().plusDays(14));
+    schedule2.setCheckInType(CheckInType.SYMPTOM);
+    schedule2.setStatus(CheckInScheduleStatus.PAUSED);
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(
+                id, id, id, schedule, schedule2));
+
+    List<CheckInResponse> checkInResponses =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false);
+    Assert.assertEquals(checkInResponses.size(), 1);
+    Assert.assertEquals(checkInResponses.get(0).getId(), SurveySubmission.PRACTICE_CHECKIN_ID);
+  }
+
+  @Test
+  public void getCheckInsByEnrollmentAndStatus_doesNotCreatesPracticeCheckinsIfPracticeCompleted() {
+    Long id = 15L;
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setStartDate(LocalDate.now().minusDays(14));
+    schedule.setEndDate(LocalDate.now().plusDays(14));
+    schedule.setCheckInType(CheckInType.ORAL);
+    schedule.setStatus(CheckInScheduleStatus.ACTIVE);
+
+    Enrollment en =
+        enrollmentRepository.save(
+            EnrollmentRepositoryTest.createEnrollmentWithSchedules(id, id, id, schedule));
+
+    CheckIn ci1 =
+        createCheckIn(en, CheckInStatus.COMPLETED, CheckInType.ORAL, LocalDate.now(), null);
+    PracticeCheckIn practiceCheckIn = new PracticeCheckIn();
+    practiceCheckIn.setClinicId(id);
+    practiceCheckIn.setPatientId(id);
+    practiceCheckIn.setCompletedBy("test user");
+    practiceCheckInRepository.save(practiceCheckIn);
+
+    List<CheckInResponse> checkInResponses =
+        service.getCheckInsByEnrollmentAndStatus(en.getId(), CheckInStatus.PENDING, false);
+    Assert.assertEquals(checkInResponses.size(), 0);
+  }
+
   private void submitCheckIn(String id, String question, String answer) {
     SurveyItemPayload surveyItemPayload = new SurveyItemPayload();
     surveyItemPayload.setPayload(new HashMap<>());
@@ -750,6 +984,57 @@ public class CheckInServiceTest {
   private CheckIn createCheckIn(
       String enrollmentId, CheckInStatus status, CheckInType type, LocalDate date) {
     return createCheckIn(enrollmentId, status, type, date, null);
+  }
+
+  private CheckIn createCheckIn(
+      Enrollment enrollment,
+      CheckInStatus status,
+      CheckInType type,
+      LocalDate date,
+      Boolean medicationTaken) {
+    return createCheckIn(
+        enrollment, status, type, date, medicationTaken, ReasonForCheckInCreation.SCHEDULED);
+  }
+
+  private CheckIn createCheckIn(
+      Enrollment enrollment,
+      CheckInStatus status,
+      CheckInType type,
+      LocalDate date,
+      Boolean medicationTaken,
+      ReasonForCheckInCreation reason) {
+    CheckIn ci = new CheckIn();
+    ci.setEnrollmentId(enrollment.getId());
+    ci.setStatus(status);
+    ci.setCheckInType(type);
+    ci.setScheduleDate(date);
+    ci.setScheduleTime(LocalTime.now());
+    ci.setMedicationTaken(medicationTaken);
+    ci.setClinicId(enrollment.getClinicId());
+    ci.setPatientId(enrollment.getPatientId());
+    ci.setCheckInParameters(Map.of());
+    ci.setCreatedReason(reason);
+    return checkInRepository.save(ci);
+  }
+
+  private CheckIn createCheckInNoSave(
+      Enrollment enrollment,
+      CheckInStatus status,
+      CheckInType type,
+      LocalDate date,
+      Boolean medicationTaken) {
+    CheckIn ci = new CheckIn();
+    ci.setEnrollmentId(enrollment.getId());
+    ci.setStatus(status);
+    ci.setCheckInType(type);
+    ci.setScheduleDate(date);
+    ci.setScheduleTime(LocalTime.now());
+    ci.setMedicationTaken(medicationTaken);
+    ci.setClinicId(enrollment.getClinicId());
+    ci.setPatientId(enrollment.getPatientId());
+    ci.setCheckInParameters(Map.of());
+
+    return ci;
   }
 
   private EnrollmentQuery query(long i) {

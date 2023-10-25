@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.navigatingcancer.healthtracker.api.data.auth.Identity;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
 import com.navigatingcancer.healthtracker.api.data.model.ProReview;
+import com.navigatingcancer.healthtracker.api.data.model.ProReviewActivity;
 import com.navigatingcancer.healthtracker.api.data.model.ProReviewNote;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.data.service.ProReviewService;
@@ -79,10 +80,18 @@ public class ProReviewAPIControllerTest {
             null,
             null,
             null);
-    List<ProReviewNote> proReviewNotes =
-        Arrays.asList(new ProReviewNote(validId, "test note", "dr test", new Date(1L)));
 
-    ProReviewResponse response = new ProReviewResponse(proReview, proReviewNotes);
+    var note = new ProReviewNote(validId, "test note", "dr test", new Date(1L));
+
+    var activity = new ProReviewActivity();
+    activity.setProReviewId(validId);
+    activity.setNotes("some activity note");
+    activity.setMinutes(10);
+    activity.setInPerson(false);
+    activity.setSelectedActions(List.of("patient navigation"));
+    var activities = List.of(activity);
+
+    ProReviewResponse response = new ProReviewResponse(proReview, List.of(note), List.of(activity));
 
     given(proReviewService.getProReview(any(String.class))).willReturn(response);
 

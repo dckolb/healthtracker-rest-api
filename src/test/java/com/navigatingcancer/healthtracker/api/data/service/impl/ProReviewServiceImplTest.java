@@ -15,6 +15,7 @@ import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentLocat
 import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentRequestReceipt;
 import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentStatus;
 import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentTemporaryUrl;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.data.repo.proReview.ProReviewRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.proReviewNote.ProReviewNoteRepository;
@@ -25,7 +26,6 @@ import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusServi
 import com.navigatingcancer.healthtracker.api.rest.exception.RecordNotFoundException;
 import com.navigatingcancer.healthtracker.api.rest.representation.ProReviewResponse;
 import com.navigatingcancer.healthtracker.api.rest.representation.ProReviewUpdateRequest;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;

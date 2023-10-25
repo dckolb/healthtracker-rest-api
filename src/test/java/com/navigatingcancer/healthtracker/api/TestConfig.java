@@ -1,6 +1,7 @@
 package com.navigatingcancer.healthtracker.api;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.navigatingcancer.healthtracker.api.jobs.JobPublisher;
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTrackerStatusCommand;
 import com.navigatingcancer.sqs.SqsHelper;
 import com.navigatingcancer.sqs.SqsProducer;
@@ -14,7 +15,8 @@ import org.springframework.context.annotation.Primary;
 @TestConfiguration
 public class TestConfig {
   /**
-   * Overides the default SqsHelper with a mock to prevent tests from attempting real SQS API calls.
+   * Overrides the default SqsHelper with a mock to prevent tests from attempting real SQS API
+   * calls.
    *
    * @return
    */
@@ -27,6 +29,13 @@ public class TestConfig {
     SqsProducer<HealthTrackerStatusCommand> mockProducer = Mockito.mock(SqsProducer.class);
     Mockito.doReturn(mockProducer).when(sqsHelper).createProducer(Mockito.any(), Mockito.any());
     return sqsHelper;
+  }
+
+  @Bean
+  public JobPublisher jobPublisher() {
+    JobPublisher publisher = Mockito.mock(JobPublisher.class);
+    Mockito.doNothing().when(publisher).publish(Mockito.any());
+    return publisher;
   }
 
   @Bean

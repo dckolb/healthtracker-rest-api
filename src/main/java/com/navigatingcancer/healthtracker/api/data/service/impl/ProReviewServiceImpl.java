@@ -1,19 +1,19 @@
 package com.navigatingcancer.healthtracker.api.data.service.impl;
 
+import com.google.common.base.Preconditions;
+import com.navigatingcancer.healthtracker.api.data.auth.Identity;
 import com.navigatingcancer.healthtracker.api.data.client.DocumentServiceClient;
-import com.navigatingcancer.healthtracker.api.data.model.EHRDelivery;
-import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
-import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
-import com.navigatingcancer.healthtracker.api.data.model.PdfDeliveryStatus;
-import com.navigatingcancer.healthtracker.api.data.model.ProReview;
-import com.navigatingcancer.healthtracker.api.data.model.ProReviewNote;
+import com.navigatingcancer.healthtracker.api.data.model.*;
 import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentLocator;
 import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentRequestReceipt;
 import com.navigatingcancer.healthtracker.api.data.model.documents.DocumentTemporaryUrl;
 import com.navigatingcancer.healthtracker.api.data.repo.proReview.ProReviewRepository;
+import com.navigatingcancer.healthtracker.api.data.repo.proReviewActivity.ProReviewActivityRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.proReviewNote.ProReviewNoteRepository;
 import com.navigatingcancer.healthtracker.api.data.service.ProReviewService;
 import com.navigatingcancer.healthtracker.api.events.HealthTrackerEventsPublisher;
+import com.navigatingcancer.healthtracker.api.jobs.JobPublisher;
+import com.navigatingcancer.healthtracker.api.jobs.SyncPatientActivityJobTemplate;
 import com.navigatingcancer.healthtracker.api.metrics.HealthTrackerCounterMetric;
 import com.navigatingcancer.healthtracker.api.metrics.MetersService;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
@@ -22,7 +22,6 @@ import com.navigatingcancer.healthtracker.api.rest.representation.ProReviewRespo
 import com.navigatingcancer.healthtracker.api.rest.representation.ProReviewUpdateRequest;
 import com.navigatingcancer.json.utils.JsonUtils;
 import java.util.Date;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import javax.validation.constraints.NotNull;
@@ -47,6 +46,9 @@ public class ProReviewServiceImpl implements ProReviewService {
   @Autowired private RabbitTemplate rabbitTemplate;
   @Autowired private PatientRecordService patientRecordService;
   @Autowired private MetersService meterService;
+  @Autowired private ProReviewActivityRepository proReviewActivityRepository;
+  @Autowired private JobPublisher jobPublisher;
+  @Autowired private Identity identity;
 
   public ProReviewResponse getProReview(String id) {
     Optional<ProReview> proReview = proReviewRepository.findById(id);
@@ -54,9 +56,9 @@ public class ProReviewServiceImpl implements ProReviewService {
       throw new RecordNotFoundException("Unknown ProReview ID");
     }
 
-    List<ProReviewNote> proReviewNotes = proReviewNoteRepository.getNotesByProReviewId(id);
-
-    return new ProReviewResponse(proReview.get(), proReviewNotes);
+    var notes = proReviewNoteRepository.getNotesByProReviewId(id);
+    var activities = proReviewActivityRepository.getActivitiesByProReviewId(id);
+    return new ProReviewResponse(proReview.get(), notes, activities);
   }
 
   public HealthTrackerStatus processProReview(
@@ -65,9 +67,9 @@ public class ProReviewServiceImpl implements ProReviewService {
       @NotNull String createdBy)
       throws IllegalArgumentException, RecordNotFoundException {
 
-    if (proReviewId == null || request == null || createdBy == null) {
-      throw new IllegalArgumentException("processProReview called without required arguments");
-    }
+    Preconditions.checkArgument(proReviewId != null, "proReviewId required");
+    Preconditions.checkArgument(request != null, "request required");
+    Preconditions.checkArgument(createdBy != null, "createdBy required");
 
     log.info("Processing pro review {}", request);
 
@@ -89,13 +91,31 @@ public class ProReviewServiceImpl implements ProReviewService {
       status.setCategory(HealthTrackerStatusCategory.NO_ACTION_NEEDED);
     }
 
-    if (request.getPatientActivityId() != null) {
-      proReviewRepository.appendPatientActivityId(proReviewId, request.getPatientActivityId());
-    }
-
     if (request.getCategory() != null && status.getCategory() != request.getCategory()) {
       healthTrackerStatusService.setCategory(
           request.getEnrollmentId(), request.getCategory(), request.getCheckInIds());
+    }
+
+    if (request.getActivity() != null) {
+      var activity = new ProReviewActivity();
+      activity.setProReviewId(proReviewId);
+      activity.setPatientId(status.getPatientInfo().getId());
+      activity.setClinicId(status.getClinicId());
+      activity.setSelectedActions(request.getActivity().getSelectedActions());
+      activity.setNotes(request.getActivity().getNotes());
+      activity.setInPerson(request.getActivity().isInPerson());
+      activity.setMinutes(request.getActivity().getMinutes());
+      activity.setCreatedBy(createdBy);
+      activity.setCreatedDate(new Date());
+      // FIXME: parse the clinician id when creating the identity context
+      activity.setEnteredById(Long.parseLong(identity.getClinicianId()));
+
+      proReviewActivityRepository.save(activity);
+
+      jobPublisher.publish(new SyncPatientActivityJobTemplate.Payload(activity.getId()));
+
+      meterService.incrementCounter(
+          status.getClinicId(), HealthTrackerCounterMetric.PRO_ACTIVITY_ADDED);
     }
 
     if (request.getNoteContent() != null && !request.getNoteContent().isBlank()) {

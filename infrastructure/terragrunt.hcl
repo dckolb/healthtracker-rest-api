@@ -59,20 +59,19 @@ inputs = {
     mattermost_alert_channel = local.env_vars.locals.mattermost_alert_channel
   }
 
-  read_queues_secrets = [
-    "ht-reminder-queue",
-    "ht-status-queue"
-  ]
-
-  write_queues_secrets = [
-    "notification-queue",
-    "ht-status-queue"
-  ]
-
   tfstate = {
     aws_profile = local.aws_vars.locals.aws_profile
     aws_region  = local.aws_vars.locals.aws_region
     s3_bucket   = local.tf_vars.locals.tf_state_bucket
     eks_state_dir = try(local.env_vars.locals.eks_state_dir, "eks")
   }
+
+  job_queue_name = "nc-${local.env_vars.locals.env}-health-tracker-rest-jobs.fifo"
+  job_dead_letter_queue_name = "nc-${local.env_vars.locals.env}-health-tracker-rest-jobs-dead.fifo"
+  status_queue_name = local.env_vars.locals.status_queue_name
+  status_dead_letter_queue_name = local.env_vars.locals.status_dead_letter_queue_name
+  reminder_queue_name = local.env_vars.locals.reminder_queue_name
+  reminder_dead_letter_queue_name = local.env_vars.locals.reminder_dead_letter_queue_name
+
+  notification_queue_name = local.env_vars.locals.notification_queue_name
 }

@@ -1,10 +1,10 @@
 package com.navigatingcancer.healthtracker.api.data.repo;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.EnrollmentStatus;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
 import com.navigatingcancer.scheduler.client.service.SchedulerServiceClient;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ public class CustomEnrollmentRepositoryImplTest {
 
   @MockBean private HealthTrackerStatusService healthTrackerStatusService;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   // without Manual collect
   private Enrollment e1WithoutManualCollect, e2WithoutManualCollect;

@@ -7,7 +7,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayloadContent;
@@ -16,11 +18,8 @@ import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepositoryTest;
 import com.navigatingcancer.healthtracker.api.data.service.impl.NotificationService;
-import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServiceImpl;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
 import com.navigatingcancer.healthtracker.api.rest.QueryParameters.EnrollmentQuery;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import com.navigatingcancer.scheduler.client.domain.SchedulePayload;
 import com.navigatingcancer.scheduler.client.service.SchedulerServiceClient;
 import java.time.LocalDate;
@@ -51,9 +50,7 @@ public class CheckInServiceIntegrationTest {
 
   @MockBean private HealthTrackerStatusService healthTrackerStatusService;
 
-  @MockBean private PatientInfoClient patientInfoClient;
-
-  @Autowired private SchedulingServiceImpl schedulingService;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private SurveyConfigService surveyConfigService;
 
@@ -66,9 +63,10 @@ public class CheckInServiceIntegrationTest {
 
     SchedulerServiceClient.FeignClient mock =
         Mockito.mock(SchedulerServiceClient.FeignClient.class);
-    given(schedulerServiceClient.getApi()).willReturn(mock);
+    given(schedulerServiceClient.getApi(Mockito.any())).willReturn(mock);
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(new PatientInfo()));
@@ -252,7 +250,7 @@ public class CheckInServiceIntegrationTest {
     ArgumentCaptor<SchedulePayload> schedulePayloadArgumentCaptor =
         ArgumentCaptor.forClass(SchedulePayload.class);
 
-    verify(schedulerServiceClient.getApi(), times(1))
+    verify(schedulerServiceClient.getApi(Mockito.any()), times(1))
         .schedule(any(), schedulePayloadArgumentCaptor.capture());
 
     SchedulePayload schedulePayload = schedulePayloadArgumentCaptor.getValue();

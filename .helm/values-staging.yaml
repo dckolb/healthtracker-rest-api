@@ -1,0 +1,47 @@
+replicaCount: 2
+
+deployment_env: "staging"
+
+image:
+  repository: 393224622068.dkr.ecr.us-east-1.amazonaws.com/htapi
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+ambassador: {}
+
+service:
+  type: ClusterIP
+  api: 80
+  swagger: 3000
+  apiService: "ht-api.health-tracker:80"
+
+serviceAccountRoleArn: arn:aws:iam::393224622068:role/staging-ht-api-role
+
+env:
+  AUTH_ENABLED: "true"
+  AUTH0_AUDIENCE: https://eks-test.nc-staging.com/ht-api/
+  AUTH0_DOMAIN: navigatingcare-staging.auth0.com
+  springProfile: staging
+  MONGO_DB_HOST: docdb-staging-health-tracker.cluster-c7i8opvc5uad.us-east-1.docdb.amazonaws.com
+  MONGO_DB_NAME: ht
+  GC_API_URL: https://www.staging.navigatingcare.com
+
+apiVersions:
+  ExternalSecret: "external-secrets.io/v1beta1"
+
+resources:
+  limits:
+    cpu: "1"
+    memory: "1000Mi"
+  requests:
+    cpu: "20m"
+    memory: "512Mi"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

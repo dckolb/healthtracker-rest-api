@@ -1,30 +1,33 @@
 package com.navigatingcancer.healthtracker.api.rest;
 
-import java.util.List;
-import java.util.UUID;
-
 import com.navigatingcancer.healthtracker.api.data.model.CallAttempt;
-
-import org.springframework.web.bind.annotation.PathVariable;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.ApiResponse;
-
-@Api(value = "callattempts")
+@Tag(name = "callattempts")
 public interface CallAttemptAPI {
-    @ApiOperation(value = "", nickname = "callattempt", notes = "", tags = { "callattempt", })
-    @ApiResponses(value = { @ApiResponse(code = 200, message = ""), @ApiResponse(code = 405, message = "") })
-    @RequestMapping(value = "/callattempts", method = RequestMethod.POST)
-    CallAttempt saveCallAttempt(@RequestBody CallAttempt callAttempt);
+  @Operation(summary = "", operationId = "callattempt")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = ""),
+        @ApiResponse(responseCode = "405", description = "")
+      })
+  @RequestMapping(value = "/callattempts", method = RequestMethod.POST)
+  CallAttempt saveCallAttempt(@RequestBody CallAttempt callAttempt);
 
-    @ApiOperation(value = "", nickname = "callattempt", notes = "", tags = { "callattempt", })
-    @ApiResponses(value = { @ApiResponse(code = 200, message = ""), @ApiResponse(code = 405, message = "") })
-    @RequestMapping(value = "/callattempts", method = RequestMethod.GET)
-    List<CallAttempt> getCallAttempts(@RequestParam(required = true) List<String> checkInIds);
+  @Operation(summary = "", operationId = "callattempt")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = ""),
+        @ApiResponse(responseCode = "405", description = "")
+      })
+  @RequestMapping(value = "/callattempts", method = RequestMethod.GET)
+  List<CallAttempt> getCallAttempts(@RequestParam(required = true) List<String> checkInIds);
 }

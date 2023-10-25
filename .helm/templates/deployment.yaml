@@ -1,0 +1,200 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ht-api.name" . }}
+  labels:
+{{ include "ht-api.labels" . | indent 4 }}
+    tags.datadoghq.com/service: "health-tracker.rest"
+    tags.datadoghq.com/version: {{ .Values.image.version }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ht-api.name" . }}
+  template:
+    metadata:
+      annotations:
+          ad.datadoghq.com/{{ include "ht-api.name" . }}.logs: '[{"source":"{{ include "ht-api.name" . }}","service":"health-tracker.rest"}]'
+          app: 'health_tracker'
+          sensitive: 'yes'
+          ad.datadoghq.com/{{.Chart.Name}}.tags: '{"sensitive": "yes","app": "health_tracker"}'
+      labels:
+        app.kubernetes.io/name: {{ include "ht-api.name" . }}
+        tags.datadoghq.com/service: "health-tracker.rest"
+        tags.datadoghq.com/version: {{ .Values.image.version }}
+    spec:
+    {{- if .Values.serviceAccountRoleArn }}
+      serviceAccountName: {{ include "ht-api.name" . }}
+    {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- if .Values.image.digest }}
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          {{- else }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          - name: DD_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: DD_SERVICE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['tags.datadoghq.com/service']
+          - name: DD_VERSION
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['tags.datadoghq.com/version']
+          - name: DD_LOGS_INJECTION
+            value: "true"
+          - name: DD_TRACE_CLASSES_EXCLUDE
+            value: "org.springframework.boot.actuate.health.*"
+          - name: "spring.profiles.active"
+            value: {{ .Values.env.springProfile | quote }}
+          - name: AUTH_ENABLED
+            value: {{ .Values.env.AUTH_ENABLED | quote }}
+          - name: MONGO_DB_PWD
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: password
+          - name: MONGO_DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: username
+          - name: MONGO_DB_HOST
+            value: {{ .Values.env.MONGO_DB_HOST }}
+          - name: MONGO_DB_NAME
+            value: {{ .Values.env.MONGO_DB_NAME }}
+          - name: MONGO_DB_PORT
+            value: "27017"
+          - name: GC_API_URL
+            value: "{{- .Values.env.GC_API_URL }}"
+          - name: GC_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: gc-access-key
+          - name: GC_ACCESS_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: gc-access-secret
+          - name: PX_DOMAIN
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: patient.expierence.domain
+          - name: PX_KEY
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: patient.expierence.key
+          - name: PX_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: patient.expierence.secret
+          - name: SURVEY_DEFINITION_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: survey.definition.bucket
+          - name: PRO_CTCAE_CLINICS
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: proCtcae.clinicIds
+          - name: MN_CLINICS
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: MN.clinicIds
+          - name: NOTIFICATION_QUEUE
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: notification-queue
+          - name: HT_REMINDER_QUEUE
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: ht-reminder-queue
+          - name: HT_STATUS_QUEUE
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: ht-status-queue
+          - name: HT_JOBS_QUEUE
+            value: "nc-{{.Values.env.springProfile}}-health-tracker-rest-jobs.fifo"
+          - name: RABBITMQ_HOST
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: spring.rabbitmq.host
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: spring.rabbitmq.password
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: spring.rabbitmq.username
+          - name: RABBITMQ_TEMPLATE_EXCHANGE
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: spring.rabbitmq.template.exchange
+          - name: RABBITMQ_PORT
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: spring.rabbitmq.port
+          - name: AUTH0_DOMAIN
+            value: {{ .Values.env.AUTH0_DOMAIN }}
+          - name: AUTH0_AUDIENCE
+            value: {{ .Values.env.AUTH0_AUDIENCE }}
+          - name: AUTH0_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: auth0.clientId
+          - name: AUTH0_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: health-tracker-rest-secret{{ if .Values.canaryRelease}}-canary{{ end }}
+                key: auth0.clientSecret
+          - name: LOG_LEVEL
+            value: {{ default "INFO" .Values.env.LOG_LEVEL }}
+          {{- if .Values.env.CHECK_IN_TYPE_MIGRATION_CLINIC_IDS }}
+          - name: CHECK_IN_TYPE_MIGRATION_CLINIC_IDS
+            value: {{ .Values.env.CHECK_IN_TYPE_MIGRATION_CLINIC_IDS | quote }}
+          {{- end }}
+          ports:
+          - containerPort: 8080
+            name: api
+          livenessProbe:
+            httpGet:
+              path: /ht-api/actuator/health
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

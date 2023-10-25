@@ -7,11 +7,13 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.navigatingcancer.healthtracker.api.TestConfig;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.CheckIn;
 import com.navigatingcancer.healthtracker.api.data.model.CheckInType;
 import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatus;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
@@ -21,8 +23,7 @@ import com.navigatingcancer.healthtracker.api.data.service.CheckInService;
 import com.navigatingcancer.healthtracker.api.processor.DefaultDroolsServiceTest;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusServiceTest;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.processor.TriageTicketListener;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -57,11 +58,12 @@ public class StatusServiceTriageTicketSagaTest {
 
   @Autowired CheckInRepository checkinRepository;
 
+  @Autowired TriageTicketListener triageTicketListener;
   @Autowired HealthTrackerStatusService healthTrackerStatusService;
 
   @Autowired HealthTrackerStatusRepository healthTrackerStatusRepository;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private RabbitTemplate rabbitTemplate;
 
@@ -78,7 +80,8 @@ public class StatusServiceTriageTicketSagaTest {
     patientInfo.setHighRisk(true);
     patientInfo.setId(patientId);
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(patientInfo));
@@ -110,13 +113,14 @@ public class StatusServiceTriageTicketSagaTest {
             CheckInService.PAIN_FEVER_SEVERITY, CheckInService.VERY_SEVERE);
     SurveyPayload sp = new SurveyPayload();
     sp.content.setSymptoms(Arrays.asList(sip));
-    HealthTrackerStatusCommand command = new HealthTrackerStatusCommand(enrollment.getId(), sp);
     CheckIn ci =
         DefaultDroolsServiceTest.createCheckInsFromSurveyPayload(
             CheckInType.SYMPTOM, LocalDate.now().minusDays(1), sip);
     ci.setEnrollmentId(enrollment.getId());
     ci = this.checkinRepository.insert(ci);
 
+    HealthTrackerStatusCommand command =
+        new HealthTrackerStatusCommand(enrollment.getId(), sp, List.of(ci.getId()));
     // process status
     healthTrackerStatusService.accept(command);
 
@@ -146,9 +150,10 @@ public class StatusServiceTriageTicketSagaTest {
             "updated_by_security_identity_id", patient1,
             "updated_by_name", "John Doe",
             "status", "triage");
-    var messageString = objectMapper.writeValueAsString(messageMap);
-    Message message = new Message(messageString.getBytes(), new MessageProperties());
-    healthTrackerStatusService.triageTicketListener(message);
+
+    Message message =
+        new Message(objectMapper.writeValueAsBytes(messageMap), new MessageProperties());
+    triageTicketListener.onMessage(message);
 
     // make sure we switch to TRIAGE
     HealthTrackerStatus htStatus2 = this.healthTrackerStatusRepository.getById(enrollment.getId());

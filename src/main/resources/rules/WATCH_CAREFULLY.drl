@@ -1,4 +1,4 @@
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
 import com.navigatingcancer.healthtracker.api.data.model.HealthTrackerStatusCategory;
 

@@ -1,30 +1,27 @@
 package com.navigatingcancer.healthtracker.api.events;
 
+import static java.time.temporal.ChronoUnit.DAYS;
+
 import com.navigatingcancer.date.utils.DateTimeUtils;
-import com.navigatingcancer.healthtracker.api.data.model.CheckIn;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInSchedule;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInStatus;
-import com.navigatingcancer.healthtracker.api.data.model.CheckInType;
-import com.navigatingcancer.healthtracker.api.data.model.Enrollment;
-import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload.TriggerType;
+import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.service.CheckInCreationService;
 import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServiceImpl;
-import com.navigatingcancer.healthtracker.api.metrics.HealthTrackerCounterMetric;
-import com.navigatingcancer.healthtracker.api.metrics.MetersService;
-import com.navigatingcancer.scheduler.client.domain.SchedulePayloadBuilder;
 import com.navigatingcancer.scheduler.client.domain.TriggerEvent;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Date;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class QuartzSystemEvent extends QuartzCheckinEvent {
 
-  private MetersService metersService;
+  private CheckInCreationService checkInCreationService;
 
   public QuartzSystemEvent(TriggerEvent triggerEvent, SchedulingServiceImpl ss) {
     super(triggerEvent, ss);
-    this.metersService = ss.getMetersService();
+    this.checkInCreationService = ss.getCheckInCreationService();
   }
 
   protected QuartzSystemEvent(Enrollment en, CheckInSchedule cis) {
@@ -41,7 +38,12 @@ public class QuartzSystemEvent extends QuartzCheckinEvent {
     String enrollmentId = enrollment.getId();
 
     boolean skipNextCheckin = false;
+
     if (isAutoClosed()) {
+      // FIXME: review usage of check-in type here --
+      //        how does this break with survey instances?
+      //        why only symptom checkins?
+      //        see https://navigatingcancer.atlassian.net/browse/HT-874
       // need to see if this ended in previous cycle, regardless of day in current
       // cycle
       // find last completed SYMPTOM checkin
@@ -59,11 +61,8 @@ public class QuartzSystemEvent extends QuartzCheckinEvent {
         skipNextCheckin = false;
       } else {
         int lastCompletedCheckInCycle =
-            SchedulingServiceImpl.getCycleNumberForDate(
-                enrollment, lastCompleted.getScheduleDate());
-        int scheduleDateCycle =
-            SchedulingServiceImpl.getCycleNumberForDate(
-                enrollment, scheduledDateTime.toLocalDate());
+            getCycleNumberForDate(enrollment, lastCompleted.getScheduleDate());
+        int scheduleDateCycle = getCycleNumberForDate(enrollment, scheduledDateTime.toLocalDate());
         log.debug(
             "last completed has cycle number of {} and schedule date is cycle number {}",
             lastCompletedCheckInCycle,
@@ -78,47 +77,60 @@ public class QuartzSystemEvent extends QuartzCheckinEvent {
     log.debug("checking if in past");
     // Create new checkin if enrollment is not auto-closed and if checkin date is
     // today or in the future
-    if (!skipNextCheckin
-        && SchedulingServiceImpl.isNotInThePast(scheduledDateTime, getReminderTimeZoneId())) {
-      log.debug("creating checkin");
-      CheckIn checkIn = new CheckIn(enrollment);
-      checkIn.setCheckInType(triggerPayload.getCheckInType());
-      checkIn.setStatus(CheckInStatus.PENDING);
-      checkIn.setScheduleDate(scheduledDateTime.toLocalDate());
-      checkIn.setScheduleTime(triggerPayload.getCheckInTime());
-      log.debug("saving checkin");
-      customCheckInRepository.upsertByNaturalKey(checkIn);
-      // checkInRepository.save(checkIn);
+    if (!skipNextCheckin && isNotInThePast(scheduledDateTime, getReminderTimeZoneId())) {
 
-      // Send the count to DD
-      metersService.incrementCounter(
-          enrollment.getClinicId(), HealthTrackerCounterMetric.CHECKIN_CREATED);
+      var schedule =
+          enrollment.getSchedules().stream()
+              .filter(
+                  s -> {
+                    // match schedule by id if available
+                    if (triggerPayload.getCheckInScheduleId() != null) {
+                      return Objects.equals(s.getId(), triggerPayload.getCheckInScheduleId());
 
-      if (htStatus
-          != null) { // TODO. HT Status can be null only in some tests. We should fix tests instead.
-        Date nextScheduledDateTime = triggerEvent.getNextFireTime();
-        LocalDateTime date = null;
-        if (nextScheduledDateTime != null) {
-          date =
-              DateTimeUtils.toLocalDateTime(
-                  nextScheduledDateTime, enrollment.getReminderTimeZone());
-        }
-        htStatus = healthTrackerStatusRepository.updateNextScheduleDate(htStatus.getId(), date);
+                      // otherwise, match on check in type
+                    } else {
+                      return s.getCheckInType() == triggerPayload.getCheckInType();
+                    }
+                  })
+              .findFirst();
+
+      if (schedule.isEmpty()) {
+        log.warn(
+            "skipping check-in creation, unable to match schedule to payload {}", triggerPayload);
+        return;
       }
+
+      checkInCreationService.createCheckInForSchedule(
+          enrollment,
+          schedule.get(),
+          LocalDateTime.of(scheduledDateTime.toLocalDate(), triggerPayload.getCheckInTime()));
+
+      updateNextScheduleDate();
     }
   }
 
-  @Override
-  public TriggerType getTriggerType() {
-    return TriggerType.SYSTEM;
+  // Return TRUE if the date is today or some time in the future
+  private static boolean isNotInThePast(LocalDateTime d, ZoneId tz) {
+    return !d.isBefore(LocalDate.now(tz).atStartOfDay());
   }
 
-  @Override
-  public SchedulePayloadBuilder makeSchedulePayloadBuilder(CheckInSchedule checkInSchedule) {
-    String triggerId =
-        SchedulingServiceImpl.getTriggerId(checkInSchedule.getCheckInType(), TriggerType.SYSTEM);
-    SchedulePayloadBuilder builder = SchedulePayloadBuilder.create(triggerId, triggerPayload);
-    builder.at(LocalTime.MIDNIGHT, enrollment.getReminderTimeZone());
-    return builder;
+  private static int getCycleNumberForDate(Enrollment enrollment, LocalDate date) {
+    LocalDate startDate = enrollment.getStartDate();
+    if (startDate == null) return 1;
+    Long daysFromStart = DAYS.between(startDate.atStartOfDay(), date.atStartOfDay());
+    return (int) (daysFromStart / enrollment.getDaysInCycle() + 1);
+  }
+
+  private void updateNextScheduleDate() {
+    if (htStatus
+        != null) { // TODO. HT Status can be null only in some tests. We should fix tests instead.
+      Date nextScheduledDateTime = triggerEvent.getNextFireTime();
+      LocalDateTime date = null;
+      if (nextScheduledDateTime != null) {
+        date =
+            DateTimeUtils.toLocalDateTime(nextScheduledDateTime, enrollment.getReminderTimeZone());
+      }
+      htStatus = healthTrackerStatusRepository.updateNextScheduleDate(htStatus.getId(), date);
+    }
   }
 }

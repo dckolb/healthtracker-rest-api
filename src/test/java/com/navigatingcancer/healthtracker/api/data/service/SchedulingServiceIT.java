@@ -5,7 +5,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.schedule.TriggerPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.repo.CheckInRepository;
@@ -15,8 +17,6 @@ import com.navigatingcancer.healthtracker.api.data.repo.HealthTrackerStatusRepos
 import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServiceImpl;
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTrackerStatusCommand;
 import com.navigatingcancer.notification.client.service.NotificationServiceClient;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import com.navigatingcancer.scheduler.client.domain.TriggerEvent;
 import com.navigatingcancer.scheduler.client.service.SchedulerServiceClient;
 import com.navigatingcancer.sqs.SqsHelper;
@@ -60,7 +60,7 @@ public class SchedulingServiceIT {
 
   @MockBean RabbitTemplate rabbitTemplate;
 
-  @MockBean PatientInfoClient patientInfoClient;
+  @MockBean PatientInfoServiceClient patientInfoClient;
 
   private SqsProducer<HealthTrackerStatusCommand> mockProducer;
 
@@ -80,8 +80,8 @@ public class SchedulingServiceIT {
     Mockito.doNothing().when(sqsHelper).startConsumer(any(), any());
     Mockito.doReturn("url").when(sqsHelper).getQueueUrl(any());
 
-    PatientInfoClient.FeignClient mockPatientInfo =
-        Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient mockPatientInfo =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     given(patientInfoClient.getApi()).willReturn(mockPatientInfo);
     PatientInfo patientInfo = new PatientInfo();
     patientInfo.setHighRisk(false);

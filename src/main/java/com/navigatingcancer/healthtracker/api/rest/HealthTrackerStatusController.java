@@ -6,9 +6,10 @@ import com.navigatingcancer.healthtracker.api.data.service.StatusService;
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
 import com.navigatingcancer.healthtracker.api.rest.representation.HealthTrackerStatusResponse;
 import com.navigatingcancer.healthtracker.api.rest.representation.StatusRequest;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import javax.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
 @Slf4j
+@Tag(name = "status")
 public class HealthTrackerStatusController {
 
   private HealthTrackerStatusService healthTrackerStatusService;
@@ -31,6 +33,7 @@ public class HealthTrackerStatusController {
     this.healthTrackerStatusService = healthTrackerStatusService;
   }
 
+  @Operation(summary = "", operationId = "getStatuses")
   @GetMapping("/status")
   // Add patientIds filter here ?
   public List<HealthTrackerStatus> getStatus(
@@ -40,28 +43,27 @@ public class HealthTrackerStatusController {
     return healthTrackerStatusService.getOrCreateNewStatus(clinicId, locationIds, patientIds);
   }
 
+  @Operation(summary = "", operationId = "getStatusById")
   @GetMapping("/status/{id}")
   public HealthTrackerStatus getById(@PathVariable("id") String id) {
     log.debug("HealthTrackerStatusController::getById");
     return healthTrackerStatusService.getById(id);
   }
 
+  @Operation(summary = "", operationId = "runStatus")
   @PostMapping("/status/{id}/run")
   public void run(@PathVariable("id") String id) {
     log.debug("HealthTrackerStatusController::run");
-    healthTrackerStatusService.push(id, null);
+    healthTrackerStatusService.push(id, null, List.of());
   }
 
   @Deprecated
-  @ApiOperation(
-      value = "",
-      nickname = "getStatusByIds",
-      notes = "",
-      tags = {
-        "status",
-      })
+  @Operation(summary = "", operationId = "getStatusByIds")
   @ApiResponses(
-      value = {@ApiResponse(code = 200, message = ""), @ApiResponse(code = 405, message = "")})
+      value = {
+        @ApiResponse(responseCode = "200", description = ""),
+        @ApiResponse(responseCode = "405", description = "")
+      })
   @RequestMapping(value = "/status", params = "ids", method = RequestMethod.GET)
   public List<HealthTrackerStatus> getByIds(
       @RequestParam Long clinicId, @RequestParam List<String> ids) {
@@ -69,30 +71,24 @@ public class HealthTrackerStatusController {
     return this.statusService.getByIds(clinicId, ids);
   }
 
-  @ApiOperation(
-      value = "",
-      nickname = "getStatusByIds",
-      notes = "",
-      tags = {
-        "status",
-      })
+  @Operation(summary = "", operationId = "getStatusByIds")
   @ApiResponses(
-      value = {@ApiResponse(code = 200, message = ""), @ApiResponse(code = 405, message = "")})
+      value = {
+        @ApiResponse(responseCode = "200", description = ""),
+        @ApiResponse(responseCode = "405", description = "")
+      })
   @RequestMapping(value = "/status", method = RequestMethod.POST)
   public List<HealthTrackerStatus> findByIds(@Valid @RequestBody StatusRequest statusRequest) {
     log.debug("HealthTrackerStatusController::getByIds");
     return this.statusService.getByIds(statusRequest.getClinicId(), statusRequest.getIds());
   }
 
-  @ApiOperation(
-      value = "",
-      nickname = "statusDue",
-      notes = "",
-      tags = {
-        "status",
-      })
+  @Operation(summary = "", operationId = "statusDue")
   @ApiResponses(
-      value = {@ApiResponse(code = 200, message = ""), @ApiResponse(code = 405, message = "")})
+      value = {
+        @ApiResponse(responseCode = "200", description = ""),
+        @ApiResponse(responseCode = "405", description = "")
+      })
   @RequestMapping(value = "/status/due", method = RequestMethod.POST)
   public List<HealthTrackerStatusResponse> getHealthTrackerDue(
       @Valid @RequestBody StatusRequest statusRequest) {
@@ -102,15 +98,12 @@ public class HealthTrackerStatusController {
         statusRequest.getClinicId(), statusRequest.getIds());
   }
 
-  @ApiOperation(
-      value = "",
-      nickname = "setStatusCategory",
-      notes = "",
-      tags = {
-        "status",
-      })
+  @Operation(summary = "", operationId = "setStatusCategory")
   @ApiResponses(
-      value = {@ApiResponse(code = 200, message = ""), @ApiResponse(code = 405, message = "")})
+      value = {
+        @ApiResponse(responseCode = "200", description = ""),
+        @ApiResponse(responseCode = "405", description = "")
+      })
   @RequestMapping(value = "/status/{id}/category", method = RequestMethod.POST)
   public HealthTrackerStatus setStatusCategory(
       @PathVariable("id") String id,

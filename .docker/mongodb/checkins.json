@@ -1,0 +1,179 @@
+[
+    {
+        "_id": ObjectId("5cf1529b35f1630001bf210e"),
+        "enrollmentId": "5d1d0828af5955000126982d",
+        "checkInType": "ORAL",
+        "scheduleDate": ISODate("3000-05-31T00:00:00Z"),
+        "scheduleTime": ISODate("3000-05-31T07:00:00Z"),
+        "status": "COMPLETED",
+        "surveyPayload": {
+            "_id": ObjectId("5cf1529b35f1630001bf210e"),
+            "payload": {
+                "question1": {
+                    "key": "question1",
+                    "title": "Did you start taking your Test?",
+                    "value": "Yes"
+                },
+                "question3": {
+                    "key": "question3",
+                    "title": "What day did you start?",
+                    "value": "1559286000000"
+                },
+                "question4": {
+                    "key": "question4",
+                    "title": "Are you experiencing any side effects?",
+                    "value": "No"
+                }
+            }
+        },
+        "version": NumberLong(1),
+        "createdDate": ISODate("3000-05-31T16:13:15.602Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("3000-05-31T16:27:55.946Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5cf4f3d26261700001acb912"),
+        "enrollmentId": "5d1d0828af5955000126982d",
+        "checkInType": "SYMPTOM",
+        "scheduleDate": ISODate("3000-06-03T00:00:00Z"),
+        "scheduleTime": ISODate("3000-06-03T11:00:00Z"),
+        "status": "COMPLETED",
+        "surveyPayload": {
+            "_id": ObjectId("5cf4f3d26261700001acb912"),
+            "payload": {
+                "nauseaFrequency": "Rarely",
+                "nauseaSeverity": "Mild"
+            }
+        },
+        "version": NumberLong(1),
+        "createdDate": ISODate("3000-06-03T10:17:54.467Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("3000-06-03T10:35:56.826Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d1b32b9599d3b00014a17bd"),
+        "enrollmentId": "5d1b32b9599d3b00014a17b9",
+        "checkInType": "SYMPTOM",
+        "scheduleDate": ISODate("2019-07-02T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-02T11:00:00Z"),
+        "status": "PENDING",
+        "version": NumberLong(0),
+        "createdDate": ISODate("2019-07-02T10:32:25.989Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-02T10:32:25.989Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d1b32b9599d3b00014a17bc"),
+        "enrollmentId": "5d1b32b9599d3b00014a17b9",
+        "checkInType": "ORAL",
+        "scheduleDate": ISODate("2019-07-02T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-02T11:00:00Z"),
+        "status": "PENDING",
+        "version": NumberLong(0),
+        "createdDate": ISODate("2019-07-02T10:32:25.941Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-02T10:32:25.941Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d1b32b9599d3b00014a17bb"),
+        "enrollmentId": "5d1b32b9599d3b00014a17b9",
+        "checkInType": "ORAL",
+        "scheduleDate": ISODate("2019-07-01T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-02T11:00:00Z"),
+        "status": "MISSED",
+        "version": NumberLong(1),
+        "createdDate": ISODate("2019-07-02T10:32:25.753Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-02T10:32:25.759Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d1b32b9599d3b00014a17ba"),
+        "enrollmentId": "5d1b32b9599d3b00014a17b9",
+        "checkInType": "SYMPTOM",
+        "scheduleDate": ISODate("2019-07-01T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-02T11:00:00Z"),
+        "status": "MISSED",
+        "version": NumberLong(1),
+        "createdDate": ISODate("2019-07-02T10:32:25.703Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-02T10:32:25.709Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d28a4fe2800760001969c0c"),
+        "enrollmentId": "5d1d0828af5955000126982d",
+        "checkInType": "SYMPTOM",
+        "scheduleDate": ISODate("2019-07-12T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-12T09:00:00Z"),
+        "status": "COMPLETED",
+        "surveyPayload": {
+            "_id": ObjectId("5cf4f3d26261700001acb922"),
+            "payload": {
+                "fatigueSeverity": "2",
+                "fatigueInterference": "4",
+                "painComment": "👐",
+                "painSeverity": "6",
+                "painFrequency": "3",
+                "painInterference": "1"
+            }
+        },
+        "version": NumberLong(1),
+        "createdDate": ISODate("2019-07-12T15:19:26.942Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-12T16:04:18.963Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d28a4fe2800760001969c0b"),
+        "enrollmentId": "5d28a4fe2800760001969c0a",
+        "checkInType": "ORAL",
+        "scheduleDate": ISODate("2019-07-12T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-12T09:00:00Z"),
+        "status": "COMPLETED",
+        "surveyPayload": {
+            "_id": ObjectId("5cf4f3d26261700001acb932"),
+            "payload": {
+                "fatigueSeverity": "2",
+                "fatigueInterference": "4",
+                "painComment": "👐",
+                "painSeverity": "6",
+                "painFrequency": "3",
+                "painInterference": "1"
+            }
+        },
+        "medicationTaken": true,
+        "version": NumberLong(1),
+        "createdDate": ISODate("2019-07-12T15:19:26.893Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-12T16:04:18.953Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    },
+    {
+        "_id": ObjectId("5d286da92800760001969bfa"),
+        "enrollmentId": "5d286da82800760001969bf0",
+        "checkInType": "ORAL",
+        "scheduleDate": ISODate("2019-07-11T00:00:00Z"),
+        "scheduleTime": ISODate("2019-07-12T11:00:00Z"),
+        "status": "COMPLETED",
+        "medicationTaken": false,
+        "version": NumberLong(2),
+        "createdDate": ISODate("2019-07-12T11:23:21.961Z"),
+        "createdBy": "testing",
+        "updatedDate": ISODate("2019-07-12T13:33:48.948Z"),
+        "updatedBy": "testing",
+        "_class": "com.navigatingcancer.healthtracker.api.data.model.CheckIn"
+    }
+]

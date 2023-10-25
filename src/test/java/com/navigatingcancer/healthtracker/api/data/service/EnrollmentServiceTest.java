@@ -1,13 +1,15 @@
 package com.navigatingcancer.healthtracker.api.data.service;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.verify;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
 import com.navigatingcancer.healthtracker.api.data.auth.Identity;
+import com.navigatingcancer.healthtracker.api.data.client.PatientInfoServiceClient;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepository;
 import com.navigatingcancer.healthtracker.api.data.repo.EnrollmentRepositoryTest;
 import com.navigatingcancer.healthtracker.api.data.repo.HealthTrackerStatusRepository;
@@ -18,11 +20,10 @@ import com.navigatingcancer.healthtracker.api.data.service.impl.SchedulingServic
 import com.navigatingcancer.healthtracker.api.processor.HealthTrackerStatusService;
 import com.navigatingcancer.healthtracker.api.rest.QueryParameters.EnrollmentQuery;
 import com.navigatingcancer.healthtracker.api.rest.exception.DuplicateEnrollmentException;
-import com.navigatingcancer.patientinfo.PatientInfoClient;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import java.security.InvalidParameterException;
 import java.time.LocalDate;
 import java.util.*;
+import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,7 +53,7 @@ public class EnrollmentServiceTest {
 
   @MockBean private PxTokenService pxTokenService;
 
-  @MockBean private PatientInfoClient patientInfoClient;
+  @MockBean private PatientInfoServiceClient patientInfoClient;
 
   @MockBean private NotificationService notificationService;
 
@@ -68,7 +69,8 @@ public class EnrollmentServiceTest {
     Mockito.doNothing().when(patientRecordService).publishEnrollmentCreated(any(), any());
     Mockito.doNothing().when(patientRecordService).publishProData(any(), any(), any());
 
-    PatientInfoClient.FeignClient client = Mockito.mock(PatientInfoClient.FeignClient.class);
+    PatientInfoServiceClient.FeignClient client =
+        Mockito.mock(PatientInfoServiceClient.FeignClient.class);
     Mockito.when(patientInfoClient.getApi()).thenReturn(client);
     Mockito.when(client.getPatients(Mockito.any(), Mockito.any()))
         .thenReturn(Arrays.asList(new PatientInfo()));
@@ -207,7 +209,8 @@ public class EnrollmentServiceTest {
     Date actualdate = e.getCreatedDate();
     String actualby = e.getCreatedBy();
 
-    Date createdDate = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000);
+    int dayInMilliseconds = 24 * 60 * 60 * 1000;
+    Date createdDate = new Date(System.currentTimeMillis() - dayInMilliseconds);
     String createdBy = "DROCKEM";
 
     e.setEmailAddress("daffy@internet.com");
@@ -297,5 +300,103 @@ public class EnrollmentServiceTest {
 
     // Assert
     // ... should not throw invalidparamexception
+  }
+
+  @Test
+  public void updateEnrollment_success_scheduleMatching() {
+    // Arrange
+    String id = UUID.randomUUID().toString();
+    Enrollment e = EnrollmentRepositoryTest.createEnrollment(5, 5, 5);
+    e.setId(id);
+    e.setTxStartDate(LocalDate.now().plusDays(1));
+
+    var scheduleId = ObjectId.get().toHexString();
+    e.getSchedules().get(0).setId(scheduleId);
+
+    e = enrollmentRepository.save(e);
+
+    e.setEmailAddress("cindybear@internet.com");
+
+    // simulate id missing from incoming schedule
+    e.getSchedules().get(0).setId(null);
+
+    // Act
+    Enrollment result = enrollmentService.updateEnrollment(e);
+
+    assertEquals(
+        "update should retain schedule id", scheduleId, result.getSchedules().get(0).getId());
+  }
+
+  @Test
+  public void updateEnrollment_addsScheduleToMinimalEnrollment() {
+    Enrollment enrollment = new Enrollment();
+    enrollment.setPatientId(5l);
+    enrollment.setClinicId(4l);
+    enrollment.setStatus(EnrollmentStatus.ACTIVE);
+    enrollment.setSchedules(new ArrayList<>());
+
+    var savedEnrollment = enrollmentRepository.save(enrollment);
+
+    CheckInSchedule schedule = new CheckInSchedule();
+    schedule.setCheckInFrequency(CheckInFrequency.DAILY);
+    schedule.setCheckInType(CheckInType.ORAL);
+    schedule.setStartDate(LocalDate.now().minusDays(1l));
+    schedule.setMedication(UUID.randomUUID().toString());
+    var enrollmentInput =
+        EnrollmentRepositoryTest.createEnrollmentWithSchedules(
+            8l, 5l, 4l, EnrollmentStatus.ACTIVE, schedule);
+
+    enrollmentInput.setId(savedEnrollment.getId());
+    enrollmentInput.setVersion(savedEnrollment.getVersion());
+
+    var result = enrollmentService.updateEnrollment(enrollmentInput);
+
+    assertNotNull(result);
+    assertEquals(1, result.getSchedules().size());
+
+    var foundEnrollment = enrollmentRepository.findById(result.getId()).get();
+
+    assertEquals(1, foundEnrollment.getSchedules().size());
+  }
+
+  @Test
+  public void updateEnrollment_doesNotErrorWithNoSchedule() {
+    Enrollment enrollment = new Enrollment();
+    enrollment.setPatientId(5l);
+    enrollment.setClinicId(4l);
+    enrollment.setStatus(EnrollmentStatus.ACTIVE);
+    enrollment.setSchedules(new ArrayList<>());
+
+    var savedEnrollment = enrollmentRepository.save(enrollment);
+
+    Long locationId = 8l;
+    enrollment.setId(savedEnrollment.getId());
+    enrollment.setLocationId(locationId);
+
+    var result = enrollmentService.updateEnrollment(enrollment);
+
+    assertNotNull(result);
+    assertEquals(locationId, result.getLocationId());
+
+    var foundEnrollment = enrollmentRepository.findById(result.getId()).get();
+
+    assertEquals(locationId, foundEnrollment.getLocationId());
+  }
+
+  @Test
+  public void createEnrollment_createsMinimalEnrollment() {
+    Long patientId = 9l;
+    Long clinicId = 4l;
+    Enrollment enrollment = new Enrollment();
+    enrollment.setPatientId(patientId);
+    enrollment.setClinicId(clinicId);
+    enrollment.setStatus(EnrollmentStatus.ACTIVE);
+    enrollment.setSchedules(new ArrayList<>());
+    Enrollment result = enrollmentService.createEnrollment(enrollment);
+
+    assertNotNull(result.getId());
+    assertEquals(EnrollmentStatus.ACTIVE, result.getStatus());
+    assertEquals(patientId, result.getPatientId());
+    assertEquals(clinicId, result.getClinicId());
   }
 }

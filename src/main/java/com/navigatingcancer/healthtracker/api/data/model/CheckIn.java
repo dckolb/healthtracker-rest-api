@@ -1,9 +1,13 @@
 package com.navigatingcancer.healthtracker.api.data.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyId;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Map;
+import java.util.Optional;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -14,16 +18,48 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 @Document(collection = "checkins")
-public class CheckIn extends AbstractDocument {
+public class CheckIn extends AbstractDocument implements Comparable<CheckIn> {
+  @Indexed private String enrollmentId;
+  @Indexed private Long patientId;
+  private Long clinicId;
+  private Long locationId;
+  private String checkInScheduleId;
+  private String completedBy;
+  private String surveyInstanceId;
+  private Map<String, Object> checkInParameters;
+  private LocalDate scheduleDate;
+  private LocalTime scheduleTime;
+  private CheckInStatus status;
+  private SurveyItemPayload surveyPayload;
+  private LocalDate patientReportedTxStartDate;
+  private LocalDate txStartDate;
+  private LocalDateTime expiresAt;
+  private ContactPreferences contactPreferences;
+  private String surveyId;
+  private ReasonForCheckInCreation createdReason;
 
-  @JsonIgnore public static final String HEALTH_TRACKER_CX = "5eb1b09b24992c0fe1779085";
-  @JsonIgnore public static final String HEALTH_TRACKER_PX = "5ef3cc9c296b54c5bc8af1d2";
-  @JsonIgnore public static final String ORAL_ADHERENCE_CX = "5eb2461624992c0fe1779088";
-  @JsonIgnore public static final String ORAL_ADHERENCE_PX = "5ef3ccd0296b54c5bc8af1d3";
-  @JsonIgnore public static final String ORAL_ADHERENCE_HT_CX = "5eb23a0924992c0fe1779087";
-  @JsonIgnore public static final String ORAL_ADHERENCE_HT_PX = "5ef503f66e236d2a8797613d";
-  @JsonIgnore public static final String PROCTCAE_CX = "5eb1fc9824992c0fe1779086";
-  @JsonIgnore public static final String PROCTCAE_PX = "5ef28c0b5931f51c58ed6ff7";
+  /**
+   * @deprecated Remove or refactor to be schedule-scoped or, if needed for survey UX, add as
+   *     surveyParameter
+   */
+  @Deprecated private LocalDate enrollmentPatientReportedStartDate;
+
+  /**
+   * @deprecated Remove or refactor to be schedule-scoped or, if needed for survey UX, add as
+   *     surveyParameter
+   */
+  @Deprecated private LocalDate enrollmentReminderStartDate;
+
+  /** @deprecated get from surveyResponse */
+  @Deprecated private Boolean declineACall;
+
+  @Deprecated private String declineACallComment;
+  @Deprecated private Boolean medicationTaken;
+  @Deprecated private Boolean medicationStarted;
+  /* End get from survey response */
+
+  /** @deprecated use surveyInstance and params instead */
+  @Deprecated private CheckInType checkInType;
 
   public CheckIn(Enrollment enrollment) {
     this.enrollmentId = enrollment.getId();
@@ -35,27 +71,6 @@ public class CheckIn extends AbstractDocument {
   public CheckIn(String enrollmentId) {
     this.enrollmentId = enrollmentId;
   }
-
-  @Indexed private String enrollmentId;
-  private Long patientId;
-  private Long clinicId;
-  private Long locationId;
-  private String completedBy;
-  private CheckInType checkInType;
-  private LocalDate scheduleDate;
-  private LocalTime scheduleTime;
-  private CheckInStatus status;
-  private SurveyItemPayload surveyPayload;
-  private Boolean medicationTaken;
-  private Boolean medicationStarted;
-  private LocalDate patientReportedTxStartDate;
-  private LocalDate txStartDate;
-  private String surveyId;
-  private Boolean clinicCollect;
-  private LocalDate enrollmentPatientReportedStartDate;
-  private LocalDate enrollmentReminderStartDate;
-  private Boolean declineACall;
-  private String declineACallComment;
 
   public boolean getHasNotStartedMedication() {
     if (medicationStarted == null) return false;
@@ -88,16 +103,32 @@ public class CheckIn extends AbstractDocument {
     return (patientReportedTxStartDate == null && enrollmentPatientReportedStartDate == null);
   }
 
-  public String getSurveyId() {
-    if (surveyId == ORAL_ADHERENCE_HT_PX && clinicCollect == true) {
-      return ORAL_ADHERENCE_HT_CX;
+  @JsonIgnore
+  public LocalDateTime getScheduleDateTime() {
+    if (getScheduleDate() == null || getScheduleTime() == null) {
+      return null;
     }
-    if (surveyId == ORAL_ADHERENCE_PX && clinicCollect == true) {
-      return ORAL_ADHERENCE_CX;
+    return LocalDateTime.of(getScheduleDate(), getScheduleTime());
+  }
+
+  @Override
+  public int compareTo(CheckIn o) {
+    var c1Idx =
+        SurveyId.PREFERRED_SURVEY_ORDER.indexOf(Optional.ofNullable(getSurveyId()).orElse(""));
+    var c2Idx =
+        SurveyId.PREFERRED_SURVEY_ORDER.indexOf(Optional.ofNullable(o.getSurveyId()).orElse(""));
+    if (c1Idx == c2Idx) {
+      return 0;
     }
-    if (surveyId == HEALTH_TRACKER_PX && clinicCollect == true) {
-      return HEALTH_TRACKER_CX;
+
+    if (c1Idx == -1) {
+      return 1;
     }
-    return surveyId;
+
+    if (c2Idx == -1) {
+      return -1;
+    }
+
+    return c1Idx - c2Idx;
   }
 }

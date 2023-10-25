@@ -52,7 +52,6 @@ public class EnrollmentRepositoryTest {
     en.setPatientId(patientId);
     en.setTxStartDate(LocalDate.now().minusDays(1));
     en.setStatus(status);
-    en.setAlerts(false);
     en.setCycleNumber(1);
     en.setCycles(1);
     en.setDaysInCycle(21);
@@ -76,7 +75,6 @@ public class EnrollmentRepositoryTest {
   public static void assertEnrollmentEqual(Enrollment e1, Enrollment e2) {
     assertEquals(e1.getLocationId(), e2.getLocationId());
     assertEquals(e1.getClinicId(), e2.getClinicId());
-    assertEquals(e1.getAlerts(), e2.getAlerts());
     assertEquals(e1.getTxStartDate(), e2.getTxStartDate());
     assertEquals(e1.getStatus(), e2.getStatus());
     assertEquals(e1.getCycleNumber(), e2.getCycleNumber());

@@ -1,0 +1,49 @@
+replicaCount: 1
+
+deployment_env: "demo"
+
+image:
+  repository: 706014839439.dkr.ecr.us-east-1.amazonaws.com/htapi
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+ambassador:
+  host: demo-services.nc-acceptance.com
+
+service:
+  type: ClusterIP
+  api: 80
+  swagger: 3000
+  apiService: "ht-api.demo:80"
+
+serviceAccountRoleArn: arn:aws:iam::706014839439:role/dev-demo-ht-api-role
+
+env:
+  AUTH_ENABLED: "false"
+  AUTH0_AUDIENCE: https://eks-test.nc-demo.com/ht-api/
+  AUTH0_DOMAIN: navigatingcare-demo.auth0.com
+  springProfile: "dev-demo"
+  MONGO_DB_HOST: docdb-dev.cluster-cabss3xofxie.us-east-1.docdb.amazonaws.com
+  MONGO_DB_NAME: ht-dev-demo
+  GC_API_URL: https://www.demo-dev.nc-acceptance.com
+
+
+apiVersions:
+  ExternalSecret: "external-secrets.io/v1beta1"
+
+resources:
+  limits:
+    cpu: "1"
+    memory: "1000Mi"
+  requests:
+    cpu: "20m"
+    memory: "512Mi"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

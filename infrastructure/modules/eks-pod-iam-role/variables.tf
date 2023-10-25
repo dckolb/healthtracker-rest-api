@@ -1,13 +1,3 @@
-variable "read_queues_secrets" {
-  description = "Secret names for SQS queues from which REST API needs permission to read messages"
-  type = list(string)
-}
-
-variable "write_queues_secrets" {
-  description = "Secret names for SQS queues from which REST API needs permission to write messages"
-  type = list(string)
-}
-
 variable "tfstate" {
   description = "Identifying params for an env's shared remote terraform state bucket"
   type = object({
@@ -43,3 +33,24 @@ variable "extra_cluster_eks_state_dirs" {
   type        = list(string)
   default     = []
 }
+
+variable "job_queue_arn" {
+  description = "ARN for the job queue"
+  type = string
+}
+
+variable "status_queue_arn" {
+  description = "ARN for status queue"
+  type = string
+}
+
+variable "reminder_queue_arn" {
+  description = "ARN for reminder queue"
+  type = string
+}
+
+variable "notification_queue_arn" {
+  description = "ARN for notification queue"
+  type = string
+}
+

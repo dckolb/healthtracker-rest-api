@@ -1,0 +1,53 @@
+version: "3.7"
+volumes:
+  mongo-data:
+  mongo-config:
+services:
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:3.4.1
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    environment:
+      MONGO_INITDB_DATABASE: ht
+      MONGO_INITDB_ROOT_USERNAME: testuser
+      MONGO_INITDB_ROOT_PASSWORD: testsecret
+
+  localstack:
+    image: localstack/localstack
+    ports:
+      - "4567-4584:4567-4584"
+      - "${PORT_WEB_UI-8080}:${PORT_WEB_UI-8080}"
+    environment:
+      - SERVICES=${SERVICES- }
+      - DEBUG=${DEBUG- }
+      - DATA_DIR=${DATA_DIR- }
+      - PORT_WEB_UI=${PORT_WEB_UI- }
+      - LAMBDA_EXECUTOR=${LAMBDA_EXECUTOR- }
+      - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+
+  api:
+    image: ht-api:${GIT_COMMIT_SHA}
+    ports:
+      - "9090:8080"
+    environment:
+      MONGO_URL: mongodb://mongodb:27017
+      MONGO_DATABASE: ht
+      AUTH0_DOMAIN: 
+      AUTH0_AUDIENCE: 
+      AUTH_ENABLED: "false"
+      spring.profiles.active: "local"
+      AWS_REGION: "us-east-1"
+    links:
+      - mongodb
+    depends_on:
+      - mongodb
+
+

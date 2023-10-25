@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.1.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.1.0 http://maven.apache.org/xsd/settings-1.1.0.xsd">
+
+
+	<profiles>
+		<profile>
+			<id>nc-profile</id>
+			<repositories>
+				<repository>
+					<id>nc-repo-snapshots</id>
+					<name>Navigating Cancer repositories</name>
+					<url>https://alb-auth.nc-acceptance.com/artifactory/libs-snapshot-local/</url>
+				</repository>
+				<repository>
+					<id>nc-repo-releases</id>
+					<name>Navigating Cancer repositories</name>
+					<url>https://alb-auth.nc-acceptance.com/artifactory/libs-release-local/</url>
+				</repository>
+			</repositories>
+		</profile>
+	</profiles>
+
+	<activeProfiles>
+		<activeProfile>nc-profile</activeProfile>
+	</activeProfiles>
+
+
+</settings>

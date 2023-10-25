@@ -1,0 +1,19 @@
+{{ if not .Values.canaryRelease }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ht-api.name" . }}
+  labels:
+{{ include "ht-api.labels" . | indent 4 }}
+spec:
+  ports:
+  - name: api
+    port: {{ .Values.service.api }}
+    targetPort: 8080
+  - name: swagger
+    port: {{ .Values.service.swagger }}
+    targetPort: 3000
+  selector:
+    app.kubernetes.io/name: {{ include "ht-api.name" . }}
+  type: {{ .Values.service.type }}
+  {{ end }}

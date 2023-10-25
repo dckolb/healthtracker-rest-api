@@ -3,6 +3,7 @@ package com.navigatingcancer.healthtracker.api.metrics;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.micrometer.statsd.StatsdConfig;
 import io.micrometer.statsd.StatsdFlavor;
 import io.micrometer.statsd.StatsdMeterRegistry;
@@ -24,7 +25,6 @@ class ClinicCounterKey {
 public class MetersService {
   private final Map<ClinicCounterKey, Counter> counterCache = new ConcurrentHashMap<>();
   private MeterRegistry meterRegistry;
-  private String environment;
   private String serviceName;
   private String statsdAgentHost;
 
@@ -90,6 +90,11 @@ public class MetersService {
                 .description(metric.getDescription())
                 .tags("service", serviceName)
                 .tags("clinicId", clinicId.toString())
+                // apply additional tags associated with the metric
+                .tags(
+                    metric.getTags().entrySet().stream()
+                        .map(e -> Tag.of(e.getKey(), e.getValue()))
+                        .toList())
                 .register(meterRegistry));
   }
 }

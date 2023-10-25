@@ -1,4 +1,4 @@
-FROM amazoncorretto:17.0.3
+FROM amazoncorretto:17.0.8
 
 RUN mkdir -p /app
 WORKDIR /app

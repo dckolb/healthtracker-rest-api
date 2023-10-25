@@ -2,12 +2,12 @@ package com.navigatingcancer.healthtracker.api.processor;
 
 import com.navigatingcancer.healthtracker.api.TestConfig;
 import com.navigatingcancer.healthtracker.api.data.model.*;
+import com.navigatingcancer.healthtracker.api.data.model.patientInfo.PatientInfo;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyItemPayload;
 import com.navigatingcancer.healthtracker.api.data.model.survey.SurveyPayload;
 import com.navigatingcancer.healthtracker.api.processor.model.DroolsManager;
 import com.navigatingcancer.healthtracker.api.processor.model.HealthTracker;
 import com.navigatingcancer.healthtracker.api.processor.model.ProFormatManager;
-import com.navigatingcancer.patientinfo.domain.PatientInfo;
 import java.time.LocalDate;
 import java.util.*;
 import org.junit.Assert;
